@@ -1,0 +1,136 @@
+import 'package:flutter/material.dart';
+import 'dart:ui';
+import '../models/user.dart';
+import '../services/api_service.dart';
+import '../services/config_service.dart';
+import '../theme/app_theme.dart';
+import 'account_screen.dart';
+import 'seasonal_strategy_screen.dart';
+import 'settings_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+  bool _isAdmin = false;
+  late ApiService _apiService;
+
+  final List<Widget> _screens = const [
+    AccountScreen(),
+    SeasonalStrategyScreen(),
+    SettingsScreen(),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(baseUrl: ConfigService().apiBaseUrl);
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    try {
+      final User user = await _apiService.getUser();
+      if (mounted) {
+        setState(() {
+          _isAdmin = user.isAdmin;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to check admin status: $e');
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true, // Important for floating navbar
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: _buildGlassBottomNav(),
+    );
+  }
+
+  Widget _buildGlassBottomNav() {
+    return Container(
+      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
+      height: 70,
+      decoration: BoxDecoration(
+        color: AppColors.surface.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 0.5,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(0, Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Account'),
+              _buildNavItem(1, Icons.calendar_month_outlined, Icons.calendar_month, 'Seasonal'),
+              _buildNavItem(2, _isAdmin ? Icons.manage_accounts_outlined : Icons.person_outline, 
+                            _isAdmin ? Icons.manage_accounts : Icons.person, 'Settings'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+    final isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => _onItemTapped(index),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: isSelected
+            ? BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+              )
+            : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

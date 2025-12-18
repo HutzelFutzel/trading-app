@@ -1,0 +1,5 @@
+{
+  "apiBaseUrl": "https://us-central1-trading-30a6e.cloudfunctions.net/api",
+  "environment": "production"
+}
+
