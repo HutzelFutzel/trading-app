@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../models/executed_seasonal_trade.dart';
 import '../../services/api_service.dart';
+import '../../services/config_service.dart';
 import '../common/glass_container.dart';
 
 enum TradeStatusFilter { all, open, closed }
@@ -23,7 +22,6 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
   String? _error;
   late ApiService _apiService;
   TradeStatusFilter _filter = TradeStatusFilter.all;
-  String? _accountId;
 
   @override
   void initState() {
@@ -33,12 +31,7 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
 
   Future<void> _init() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _accountId = prefs.getString('selected_account_id');
-
-      final String response = await rootBundle.loadString('assets/config/app_config.json');
-      final data = json.decode(response);
-      final baseUrl = data['apiBaseUrl'];
+      final baseUrl = ConfigService().apiBaseUrl;
       _apiService = ApiService(baseUrl: baseUrl);
       _fetchTrades();
     } catch (e) {
@@ -54,8 +47,8 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
   Future<void> _fetchTrades() async {
     try {
       setState(() => _isLoading = true);
-      // Fetch using the optional accountId
-      final trades = await _apiService.getExecutedSeasonalTrades(accountId: _accountId);
+      // Fetch all trades for the user (no accountId filter)
+      final trades = await _apiService.getExecutedSeasonalTrades();
       
       List<ExecutedSeasonalTrade> filteredTrades = trades;
       
@@ -65,6 +58,9 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
       } else if (_filter == TradeStatusFilter.closed) {
         filteredTrades = trades.where((t) => t.completed).toList();
       }
+
+      // Sort by date descending
+      filteredTrades.sort((a, b) => b.actualOpenDate.compareTo(a.actualOpenDate));
 
       if (mounted) {
         setState(() {
@@ -263,21 +259,43 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
                 ),
               ),
               // Status Badge
-              Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                 decoration: BoxDecoration(
-                   color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withOpacity(0.1),
-                   borderRadius: BorderRadius.circular(6),
-                   border: Border.all(color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withOpacity(0.3))
-                 ),
-                 child: Text(
-                    trade.completed ? 'CLOSED' : 'OPEN',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: trade.completed ? AppColors.textDisabled : AppColors.primary,
-                    ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                     decoration: BoxDecoration(
+                       color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withOpacity(0.1),
+                       borderRadius: BorderRadius.circular(6),
+                       border: Border.all(color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withOpacity(0.3))
+                     ),
+                     child: Text(
+                        trade.completed ? 'CLOSED' : 'OPEN',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: trade.completed ? AppColors.textDisabled : AppColors.primary,
+                        ),
+                      ),
                   ),
+                  const SizedBox(height: 4),
+                  Container(
+                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                     decoration: BoxDecoration(
+                       color: (trade.isPaper ? AppColors.accent : AppColors.error).withOpacity(0.1),
+                       borderRadius: BorderRadius.circular(4),
+                       border: Border.all(color: (trade.isPaper ? AppColors.accent : AppColors.error).withOpacity(0.3))
+                     ),
+                     child: Text(
+                        trade.isPaper ? 'PAPER' : 'LIVE',
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                          color: trade.isPaper ? AppColors.accent : AppColors.error,
+                        ),
+                      ),
+                  ),
+                ],
               ),
             ],
           ),

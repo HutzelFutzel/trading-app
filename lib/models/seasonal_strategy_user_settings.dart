@@ -2,12 +2,9 @@ class SeasonalStrategyUserSettings {
   final String? id;
   final String userId;
   final String? accountId;
-  final bool enablePaperTrading;
-  final bool enableLiveTrading;
   final String allocationMode;
-  final Map<int, double> customAllocations;
-  final double maxMargin;
-  final bool allowThreadOverlap;
+  final Map<int, double> customAllocationsPaper;
+  final Map<int, double> customAllocationsLive;
   final List<String> paperTradeIds;
   final List<String> liveTradeIds;
   
@@ -27,12 +24,9 @@ class SeasonalStrategyUserSettings {
     this.id,
     required this.userId,
     this.accountId,
-    required this.enablePaperTrading,
-    required this.enableLiveTrading,
     required this.allocationMode,
-    required this.customAllocations,
-    required this.maxMargin,
-    required this.allowThreadOverlap,
+    required this.customAllocationsPaper,
+    required this.customAllocationsLive,
     required this.paperTradeIds,
     required this.liveTradeIds,
     this.thread1 = const [],
@@ -50,23 +44,34 @@ class SeasonalStrategyUserSettings {
   factory SeasonalStrategyUserSettings.defaults({required String userId}) {
     return SeasonalStrategyUserSettings(
       userId: userId,
-      enablePaperTrading: true,
-      enableLiveTrading: false,
       allocationMode: 'equal',
-      customAllocations: {},
-      maxMargin: 0,
-      allowThreadOverlap: false,
+      customAllocationsPaper: {},
+      customAllocationsLive: {},
       paperTradeIds: [],
       liveTradeIds: [],
     );
   }
 
   factory SeasonalStrategyUserSettings.fromJson(Map<String, dynamic> json) {
-    Map<int, double> allocations = {};
-    if (json['customAllocations'] != null) {
-      (json['customAllocations'] as Map<String, dynamic>).forEach((key, value) {
-        allocations[int.parse(key)] = (value as num).toDouble();
-      });
+    Map<int, double> parseAllocations(String key) {
+        Map<int, double> result = {};
+        if (json[key] != null) {
+          (json[key] as Map<String, dynamic>).forEach((k, v) {
+            result[int.parse(k)] = (v as num).toDouble();
+          });
+        }
+        return result;
+    }
+
+    // Try new fields
+    var paperAlloc = parseAllocations('customAllocationsPaper');
+    var liveAlloc = parseAllocations('customAllocationsLive');
+
+    // Fallback to legacy field if new ones are empty but legacy exists
+    if (paperAlloc.isEmpty && liveAlloc.isEmpty && json['customAllocations'] != null) {
+        final legacy = parseAllocations('customAllocations');
+        paperAlloc = Map.from(legacy);
+        liveAlloc = Map.from(legacy);
     }
 
     List<String> parseThread(String key) {
@@ -77,12 +82,9 @@ class SeasonalStrategyUserSettings {
       id: json['id'],
       userId: json['userId'],
       accountId: json['accountId'],
-      enablePaperTrading: json['enablePaperTrading'] ?? true,
-      enableLiveTrading: json['enableLiveTrading'] ?? false,
       allocationMode: json['allocationMode'] ?? 'equal',
-      customAllocations: allocations,
-      maxMargin: (json['maxMargin'] as num?)?.toDouble() ?? 0.0,
-      allowThreadOverlap: json['allowThreadOverlap'] ?? false,
+      customAllocationsPaper: paperAlloc,
+      customAllocationsLive: liveAlloc,
       paperTradeIds: (json['paperTradeIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
       liveTradeIds: (json['liveTradeIds'] as List?)?.map((e) => e.toString()).toList() ?? [],
       thread1: parseThread('thread1'),
@@ -103,12 +105,9 @@ class SeasonalStrategyUserSettings {
       if (id != null) 'id': id,
       'userId': userId,
       if (accountId != null) 'accountId': accountId,
-      'enablePaperTrading': enablePaperTrading,
-      'enableLiveTrading': enableLiveTrading,
       'allocationMode': allocationMode,
-      'customAllocations': customAllocations.map((k, v) => MapEntry(k.toString(), v)),
-      'maxMargin': maxMargin,
-      'allowThreadOverlap': allowThreadOverlap,
+      'customAllocationsPaper': customAllocationsPaper.map((k, v) => MapEntry(k.toString(), v)),
+      'customAllocationsLive': customAllocationsLive.map((k, v) => MapEntry(k.toString(), v)),
       'paperTradeIds': paperTradeIds,
       'liveTradeIds': liveTradeIds,
       'thread1': thread1,
@@ -128,12 +127,9 @@ class SeasonalStrategyUserSettings {
     String? id,
     String? userId,
     String? accountId,
-    bool? enablePaperTrading,
-    bool? enableLiveTrading,
     String? allocationMode,
-    Map<int, double>? customAllocations,
-    double? maxMargin,
-    bool? allowThreadOverlap,
+    Map<int, double>? customAllocationsPaper,
+    Map<int, double>? customAllocationsLive,
     List<String>? paperTradeIds,
     List<String>? liveTradeIds,
     List<String>? thread1,
@@ -151,12 +147,9 @@ class SeasonalStrategyUserSettings {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       accountId: accountId ?? this.accountId,
-      enablePaperTrading: enablePaperTrading ?? this.enablePaperTrading,
-      enableLiveTrading: enableLiveTrading ?? this.enableLiveTrading,
       allocationMode: allocationMode ?? this.allocationMode,
-      customAllocations: customAllocations ?? this.customAllocations,
-      maxMargin: maxMargin ?? this.maxMargin,
-      allowThreadOverlap: allowThreadOverlap ?? this.allowThreadOverlap,
+      customAllocationsPaper: customAllocationsPaper ?? this.customAllocationsPaper,
+      customAllocationsLive: customAllocationsLive ?? this.customAllocationsLive,
       paperTradeIds: paperTradeIds ?? this.paperTradeIds,
       liveTradeIds: liveTradeIds ?? this.liveTradeIds,
       thread1: thread1 ?? this.thread1,
@@ -189,6 +182,34 @@ class SeasonalStrategyUserSettings {
     if (thread9.contains(tradeId)) return 9;
     if (thread10.contains(tradeId)) return 10;
     return 1; // Default
+  }
+  
+  double getEqualAllocation({required bool isPaper}) {
+    int activeThreadsCount = 0;
+    final activeTradeIds = isPaper ? paperTradeIds : liveTradeIds;
+
+    for (int i = 1; i <= 10; i++) {
+       List<String> threadTrades = [];
+       switch(i) {
+         case 1: threadTrades = thread1; break;
+         case 2: threadTrades = thread2; break;
+         case 3: threadTrades = thread3; break;
+         case 4: threadTrades = thread4; break;
+         case 5: threadTrades = thread5; break;
+         case 6: threadTrades = thread6; break;
+         case 7: threadTrades = thread7; break;
+         case 8: threadTrades = thread8; break;
+         case 9: threadTrades = thread9; break;
+         case 10: threadTrades = thread10; break;
+       }
+       
+       if (threadTrades.any((id) => activeTradeIds.contains(id))) {
+         activeThreadsCount++;
+       }
+    }
+    
+    if (activeThreadsCount == 0) return 0.0;
+    return 100.0 / activeThreadsCount;
   }
 
   SeasonalStrategyUserSettings togglePaper(String tradeId, bool active) {
@@ -253,6 +274,52 @@ class SeasonalStrategyUserSettings {
       thread8: t8,
       thread9: t9,
       thread10: t10,
+    );
+  }
+
+  SeasonalStrategyUserSettings subscribe(String tradeId) {
+    // Add to paperTradeIds and thread1
+    var newPaperIds = List<String>.from(paperTradeIds);
+    if (!newPaperIds.contains(tradeId)) {
+      newPaperIds.add(tradeId);
+    }
+    
+    var newThread1 = List<String>.from(thread1);
+    if (!newThread1.contains(tradeId)) {
+      newThread1.add(tradeId);
+    }
+
+    return copyWith(
+      paperTradeIds: newPaperIds,
+      thread1: newThread1,
+    );
+  }
+
+  SeasonalStrategyUserSettings unsubscribe(String tradeId) {
+    final cleanId = tradeId.trim();
+
+    // Remove from execution lists
+    var newPaperIds = paperTradeIds.where((id) => id != cleanId).toList();
+    var newLiveIds = liveTradeIds.where((id) => id != cleanId).toList();
+
+    // Remove from all threads
+    List<String> removeFrom(List<String> source) {
+      return source.where((id) => id.trim() != cleanId).toList();
+    }
+
+    return copyWith(
+      paperTradeIds: newPaperIds,
+      liveTradeIds: newLiveIds,
+      thread1: removeFrom(thread1),
+      thread2: removeFrom(thread2),
+      thread3: removeFrom(thread3),
+      thread4: removeFrom(thread4),
+      thread5: removeFrom(thread5),
+      thread6: removeFrom(thread6),
+      thread7: removeFrom(thread7),
+      thread8: removeFrom(thread8),
+      thread9: removeFrom(thread9),
+      thread10: removeFrom(thread10),
     );
   }
 }

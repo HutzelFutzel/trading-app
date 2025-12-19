@@ -61,6 +61,12 @@ class AppTextStyles {
     color: AppColors.textSecondary,
   );
 
+  static TextStyle get bodySmall => GoogleFonts.inter(
+    fontSize: 12,
+    fontWeight: FontWeight.normal,
+    color: AppColors.textSecondary,
+  );
+
   // Monospaced for financial data
   static TextStyle get monoLarge => GoogleFonts.robotoMono( // Changed from jetbrainsMono to robotoMono for safety
     fontSize: 18,
@@ -126,6 +132,7 @@ class AppTheme {
         titleLarge: AppTextStyles.headlineLarge,
         bodyLarge: AppTextStyles.bodyLarge,
         bodyMedium: AppTextStyles.bodyMedium,
+        bodySmall: AppTextStyles.bodySmall,
       ),
 
       // App Bar
@@ -225,6 +232,7 @@ class AppTheme {
         titleLarge: AppTextStyles.headlineLarge.copyWith(color: const Color(0xFF0F172A)),
         bodyLarge: AppTextStyles.bodyLarge.copyWith(color: const Color(0xFF334155)),
         bodyMedium: AppTextStyles.bodyMedium.copyWith(color: const Color(0xFF475569)),
+        bodySmall: AppTextStyles.bodySmall.copyWith(color: const Color(0xFF64748B)),
       ),
       // ... (simplified for light mode)
     );

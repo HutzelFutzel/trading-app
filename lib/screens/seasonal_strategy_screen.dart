@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../widgets/seasonal/seasonal_trades_user_view.dart';
-import 'seasonal_strategy_settings_view.dart';
 import '../widgets/seasonal/executed_trades_view.dart';
 import '../theme/app_theme.dart';
+import '../widgets/common/menu_icon_button.dart';
+import '../services/api_service.dart';
+import '../services/config_service.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class SeasonalStrategyScreen extends StatefulWidget {
   const SeasonalStrategyScreen({super.key});
@@ -13,18 +16,31 @@ class SeasonalStrategyScreen extends StatefulWidget {
 
   class _SeasonalStrategyScreenState extends State<SeasonalStrategyScreen> {
   bool _isLoading = true;
+  bool _isAdmin = false;
+  late ApiService _apiService;
 
   @override
   void initState() {
     super.initState();
-    setState(() => _isLoading = false);
+    _apiService = ApiService(baseUrl: ConfigService().apiBaseUrl);
+    _checkAdminStatus();
   }
 
-  void _openSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SeasonalStrategySettingsView()),
-    );
+  Future<void> _checkAdminStatus() async {
+    try {
+      final user = await _apiService.getUser();
+      if (mounted) {
+        setState(() {
+          _isAdmin = user.isAdmin;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to check admin status: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -35,13 +51,11 @@ class SeasonalStrategyScreen extends StatefulWidget {
     // Admin gets Calendar, User does not
     final tabs = [
        const Tab(text: 'Trades'),
-       const Tab(text: 'Performance'),
        const Tab(text: 'Activity'),
     ];
 
     final tabViews = [
        const SeasonalTradesUserView(),
-       const Center(child: Text('Performance Placeholder')),
        const ExecutedTradesView(), // Show open trades in Activity tab
     ];
 
@@ -50,17 +64,24 @@ class SeasonalStrategyScreen extends StatefulWidget {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: Text('Seasonal Strategy', style: AppTextStyles.headlineLarge),
+          title: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: SvgPicture.asset(
+                  'assets/brand/logo.svg',
+                  width: 32,
+                  height: 32,
+                ),
+              ),
+              Text('Seasonal Strategy', style: AppTextStyles.headlineLarge),
+            ],
+          ),
           centerTitle: false,
           backgroundColor: AppColors.background,
           surfaceTintColor: Colors.transparent,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.settings),
-              color: AppColors.textSecondary,
-              onPressed: _openSettings,
-              tooltip: 'Strategy Rules',
-            ),
+            MenuIconButton(isAdmin: _isAdmin),
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(48),

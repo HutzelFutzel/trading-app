@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:726854290946:android:6998bcb5cd257cc4d2e11b",
+        "android_client_info": {
+          "package_name": "com.hutzelfutzel.alpharelay"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAKoZygypzX_hx8sYlpp9XKYnZFEMwPi6A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:726854290946:android:b5b622f81f0557e8d2e11b",
         "android_client_info": {
           "package_name": "com.trading"

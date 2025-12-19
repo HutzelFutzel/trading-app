@@ -9,7 +9,8 @@ EMULATOR_ABI="google_apis;arm64-v8a" # For Apple Silicon Macs
 echo "Checking for existing emulator: $EMULATOR_NAME..."
 
 # Check if emulator exists
-if ! ../flutter/bin/flutter emulators | grep -q "$EMULATOR_NAME"; then
+# We drop -q to avoid broken pipe issues with flutter stdout
+if ! ../flutter/bin/flutter emulators | grep "$EMULATOR_NAME" > /dev/null; then
     echo "Creating new emulator: $EMULATOR_NAME..."
     
     # We need avdmanager which comes with Android SDK cmdline-tools
@@ -38,10 +39,8 @@ echo "Launching emulator..."
 echo "Waiting for emulator to boot..."
 # Simple wait loop checking for device connectivity
 count=0
-# We check if the emulator is listed in 'flutter devices' AND is not offline
-# But since the user says it is started, maybe the grep is failing or it's named slightly differently in 'devices' output.
-# Let's just try running if we see it in devices list at all.
-while ! ../flutter/bin/flutter devices | grep -q "emulator-" && [ $count -lt 60 ]; do
+# We check if the emulator is listed in 'flutter devices' using machine output for reliability
+while ! ../flutter/bin/flutter devices --machine | jq -e '.[] | select(.id | startswith("emulator-"))' > /dev/null && [ $count -lt 60 ]; do
     sleep 2
     count=$((count+1))
     echo -n "."
@@ -49,7 +48,7 @@ done
 echo ""
 
 # Get the first emulator ID found
-EMULATOR_ID=$(../flutter/bin/flutter devices | grep "emulator-" | head -n 1 | awk -F "•" '{print $2}' | xargs)
+EMULATOR_ID=$(../flutter/bin/flutter devices --machine | jq -r '.[] | select(.id | startswith("emulator-")) | .id' | head -n 1)
 
 if [ ! -z "$EMULATOR_ID" ]; then
     echo "Emulator started ($EMULATOR_ID). Running app..."
@@ -59,4 +58,3 @@ else
     echo "Target specific emulator ID not found, trying any connected emulator..."
     ../flutter/bin/flutter run
 fi
-

@@ -9,6 +9,14 @@ import '../models/user.dart';
 import '../models/executed_seasonal_trade.dart';
 import 'auth_service.dart';
 
+class UserSaveException implements Exception {
+  final String message;
+  final User? updatedUser;
+  UserSaveException(this.message, {this.updatedUser});
+  @override
+  String toString() => message;
+}
+
 class ApiService {
   final String baseUrl;
   final AuthService _authService = AuthService();
@@ -338,25 +346,31 @@ class ApiService {
     _checkUnauthorized(response);
     if (response.statusCode == 200) {
       final body = json.decode(response.body);
+      User? savedUser;
       if (body['user'] != null) {
-        return User.fromJson(body['user']);
+        savedUser = User.fromJson(body['user']);
       }
-      return user;
+      
+      if (body['error'] != null) {
+          throw UserSaveException(body['error'], updatedUser: savedUser);
+      }
+      
+      return savedUser ?? user;
     } else {
       throw Exception('Failed to save user settings');
     }
   }
 
-  Future<bool> verifyAlpacaAccount(String accountId) async {
+  Future<Map<String, dynamic>> verifyAlpacaAccount(String accountId) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/user/verify-account'),
       headers: await _getHeaders(),
       body: json.encode({'accountId': accountId}),
     );
     _checkUnauthorized(response);
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 400) {
       final data = json.decode(response.body);
-      return data['verified'] ?? false;
+      return data;
     } else {
       throw Exception('Failed to verify account');
     }

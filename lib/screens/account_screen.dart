@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../theme/app_theme.dart';
-import '../models/account_data.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:async';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/config_service.dart';
-import '../widgets/account/summary_view.dart';
-import '../widgets/account/portfolio_view.dart';
-import '../widgets/account/orders_view.dart';
-import '../widgets/common/pull_refresh_container.dart';
+import '../theme/app_theme.dart';
+import '../widgets/common/step_by_step_guide.dart';
+import '../widgets/common/custom_text_field.dart';
+import '../widgets/common/app_snackbar.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -18,471 +16,646 @@ class AccountScreen extends StatefulWidget {
   State<AccountScreen> createState() => _AccountScreenState();
 }
 
-class _AccountScreenState extends State<AccountScreen> with SingleTickerProviderStateMixin {
-  // State
-  AlpacaAccount? _selectedAccount;
-  bool _isLoading = false;
-  String? _error;
-  
-  late TabController _tabController;
-  
-  // Data
-  Account? _account;
-  List<Position> _positions = [];
-  List<Order> _orders = [];
-  
-  // Accounts
-  List<AlpacaAccount> _availableAccounts = [];
-
-  // Dependencies
+class _AccountScreenState extends State<AccountScreen> {
   late ApiService _apiService;
+  bool _isLoading = true;
+  String? _error;
+  User? _settings;
+  bool _isSaving = false;
+  String? _paperVerificationError;
+  String? _liveVerificationError;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _apiService = ApiService(baseUrl: ConfigService().apiBaseUrl);
-    _loadPersistedAccount();
+    _fetchSettings();
   }
 
-  Future<void> _loadPersistedAccount() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedId = prefs.getString('selected_account_id');
-    
-    // First fetch available accounts
-    await _fetchAccounts();
-    
-    if (_availableAccounts.isNotEmpty) {
-      if (savedId != null) {
-        try {
-          final account = _availableAccounts.firstWhere((a) => a.id == savedId);
-          setState(() {
-            _selectedAccount = account;
-          });
-        } catch (_) {
-          setState(() {
-            _selectedAccount = _availableAccounts.first;
-          });
-        }
-      } else {
+  Future<void> _fetchSettings() async {
+    try {
+      setState(() => _isLoading = true);
+      final settings = await _apiService.getUser();
+      if (mounted) {
         setState(() {
-          _selectedAccount = _availableAccounts.first;
+          _settings = settings;
+          _isLoading = false;
         });
       }
-      
-      await _fetchData(isRefresh: true);
-    } else {
-      if (mounted && _error == null) {
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _error = 'No accounts configured. Please add an account in Settings.';
+          _error = 'Failed to load settings: $e';
+          _isLoading = false;
         });
       }
     }
   }
 
-  Future<void> _fetchAccounts() async {
+  Future<void> _saveSettings(User updated, {bool showSuccess = false}) async {
+    setState(() => _isSaving = true);
     try {
-      final settings = await _apiService.getUser();
+      final savedSettings = await _apiService.saveUser(updated);
+      setState(() {
+        _settings = savedSettings;
+        _isSaving = false;
+      });
+      if (mounted && showSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackBar(
+            message: 'Settings saved',
+            icon: Icons.check_circle_outline,
+            iconColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
+      
+      String message = 'Error saving: $e';
+      if (e is UserSaveException) {
+         message = e.message;
+         if (e.updatedUser != null && mounted) {
+            setState(() {
+               _settings = e.updatedUser;
+            });
+         }
+      }
+
       if (mounted) {
-        setState(() {
-          _availableAccounts = settings.alpacaAccounts;
-          if (_availableAccounts.isNotEmpty) {
-             _error = null;
-          }
-        });
-        
-        if (_selectedAccount != null && !_availableAccounts.any((a) => a.id == _selectedAccount!.id)) {
-           if (_availableAccounts.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          AppSnackBar(
+            message: message,
+            icon: Icons.error_outline,
+            iconColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _retryVerification(String accountId, bool isPaper) async {
+    setState(() => _isSaving = true);
+    // Reset specific error before retry
+    if (isPaper) setState(() => _paperVerificationError = null);
+    else setState(() => _liveVerificationError = null);
+
+    try {
+      final result = await _apiService.verifyAlpacaAccount(accountId);
+      final bool verified = result['verified'] == true;
+      final String? message = result['message'];
+      final String? accountNumber = result['accountNumber'];
+      final String? error = result['error'];
+      
+      if (mounted) {
+        if (verified) {
+           // Update local state
+           User? updatedUser;
+           if (isPaper && _settings?.alpacaPaperAccount != null) {
+              updatedUser = _settings!.copyWith(
+                alpacaPaperAccount: _settings!.alpacaPaperAccount!.copyWith(verified: true)
+              );
+           } else if (!isPaper && _settings?.alpacaLiveAccount != null) {
+              updatedUser = _settings!.copyWith(
+                alpacaLiveAccount: _settings!.alpacaLiveAccount!.copyWith(verified: true)
+              );
+           }
+
+           if (updatedUser != null) {
              setState(() {
-               _selectedAccount = _availableAccounts.first;
-             });
-             _fetchData(isRefresh: false);
-           } else {
-             setState(() {
-               _selectedAccount = null;
+               _settings = updatedUser;
              });
            }
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message ?? 'Account verified successfully')));
+        } else {
+           // Mark as unverified
+           User? updatedUser;
+           if (isPaper && _settings?.alpacaPaperAccount != null) {
+              updatedUser = _settings!.copyWith(
+                alpacaPaperAccount: _settings!.alpacaPaperAccount!.copyWith(verified: false)
+              );
+              setState(() => _paperVerificationError = error ?? message);
+           } else if (!isPaper && _settings?.alpacaLiveAccount != null) {
+              updatedUser = _settings!.copyWith(
+                alpacaLiveAccount: _settings!.alpacaLiveAccount!.copyWith(verified: false)
+              );
+              setState(() => _liveVerificationError = error ?? message);
+           }
+           
+           if (updatedUser != null) {
+             setState(() {
+               _settings = updatedUser;
+             });
+           }
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+             content: Text(message ?? 'Verification failed. Check credentials.'),
+             backgroundColor: Colors.red,
+           ));
         }
       }
     } catch (e) {
-      debugPrint('Failed to fetch user settings: $e');
-      if (mounted && _availableAccounts.isEmpty) {
-         setState(() {
-            _error = "Failed to fetch accounts: ${e.toString().replaceAll('Exception: ', '')}";
-         });
-      }
+       if (isPaper) setState(() => _paperVerificationError = e.toString());
+       else setState(() => _liveVerificationError = e.toString());
+       
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+       }
+    } finally {
+        if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _updatePaperAccount(AlpacaAccount account) {
+    if (_settings == null) return;
+    _saveSettings(_settings!.copyWith(alpacaPaperAccount: account));
+  }
+
+  void _updateLiveAccount(AlpacaAccount account) {
+    if (_settings == null) return;
+    _saveSettings(_settings!.copyWith(alpacaLiveAccount: account));
+  }
+
+  // Helper to ensure accounts exist with IDs
+  void _ensureAccountsExist() {
+     if (_settings == null) return;
+     bool changed = false;
+     User temp = _settings!;
+
+     if (temp.alpacaPaperAccount == null) {
+        temp = temp.copyWith(
+          alpacaPaperAccount: AlpacaAccount(
+            id: const Uuid().v4(), 
+            apiKey: '', 
+            apiSecret: '',
+            enabled: true
+          )
+        );
+        changed = true;
+     }
+
+     if (temp.alpacaLiveAccount == null) {
+        temp = temp.copyWith(
+          alpacaLiveAccount: AlpacaAccount(
+            id: const Uuid().v4(), 
+            apiKey: '', 
+            apiSecret: '',
+            enabled: false // Default live to disabled for safety
+          )
+        );
+        changed = true;
+     }
+
+     if (changed) {
+       _settings = temp;
+       // We don't save immediately to server to avoid empty writes, 
+       // but we update local state so UI renders the forms.
+       // Or we could save empty shells. Let's save.
+       _saveSettings(temp); 
+     }
+  }
+
+  // Logout function removed as it moved to menu
+  
+  @override
+  Widget build(BuildContext context) {
+    // If settings loaded but accounts missing, create them
+    if (!_isLoading && _settings != null && (_settings!.alpacaPaperAccount == null || _settings!.alpacaLiveAccount == null)) {
+       // Defer to next frame to avoid build error
+       WidgetsBinding.instance.addPostFrameCallback((_) => _ensureAccountsExist());
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('Account', style: AppTextStyles.headlineLarge),
+        backgroundColor: AppColors.background,
+        centerTitle: false,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            color: Colors.white.withOpacity(0.05),
+            height: 1,
+          ),
+        ),
+        actions: [
+          if (_isSaving)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+            )
+        ],
+      ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : _error != null 
+          ? Center(child: Text(_error!, style: AppTextStyles.bodyLarge))
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (_settings?.alpacaPaperAccount != null)
+                  _AccountCard(
+                    title: 'Paper Trading',
+                    account: _settings!.alpacaPaperAccount!,
+                    isPaper: true,
+                    onUpdate: _updatePaperAccount,
+                    onRetryVerification: () => _retryVerification(_settings!.alpacaPaperAccount!.id, true),
+                    verificationError: _paperVerificationError,
+                  ),
+                const SizedBox(height: 24),
+                if (_settings?.alpacaLiveAccount != null)
+                  _AccountCard(
+                    title: 'Live Trading',
+                    account: _settings!.alpacaLiveAccount!,
+                    isPaper: false,
+                    onUpdate: _updateLiveAccount,
+                    onRetryVerification: () => _retryVerification(_settings!.alpacaLiveAccount!.id, false),
+                    verificationError: _liveVerificationError,
+                  ),
+                
+                const SizedBox(height: 40),
+                Divider(color: Colors.white.withOpacity(0.05)),
+                const SizedBox(height: 24),
+                
+                // Logout Button removed
+                
+                const SizedBox(height: 120),
+              ],
+            ),
+    );
+  }
+}
+
+class _AccountCard extends StatefulWidget {
+  final String title;
+  final AlpacaAccount account;
+  final bool isPaper;
+  final Function(AlpacaAccount) onUpdate;
+  final VoidCallback onRetryVerification;
+  final String? verificationError;
+
+  const _AccountCard({
+    required this.title,
+    required this.account, 
+    required this.isPaper,
+    required this.onUpdate, 
+    required this.onRetryVerification,
+    this.verificationError,
+  });
+
+  @override
+  State<_AccountCard> createState() => _AccountCardState();
+}
+
+class _AccountCardState extends State<_AccountCard> {
+  bool _expanded = false;
+  late TextEditingController _keyCtrl;
+  late TextEditingController _secretCtrl;
+  late TextEditingController _utilizationCtrl;
+  
+  // Local state for immediate feedback
+  late bool _allowShort;
+  late bool _enabled;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _keyCtrl = TextEditingController(text: widget.account.apiKey);
+    _secretCtrl = TextEditingController(text: widget.account.apiSecret);
+    _utilizationCtrl = TextEditingController(text: widget.account.maxUtilizationPercentage.toString());
+    
+    _allowShort = widget.account.allowShortTrading;
+    _enabled = widget.account.enabled;
+
+    _keyCtrl.addListener(_onFieldChanged);
+    _secretCtrl.addListener(_onFieldChanged);
+    _utilizationCtrl.addListener(_onFieldChanged);
+  }
+  
+  @override
+  void didUpdateWidget(_AccountCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.account != widget.account) {
+        // Temporarily remove listeners to avoid triggering save on external update
+        _keyCtrl.removeListener(_onFieldChanged);
+        _secretCtrl.removeListener(_onFieldChanged);
+        _utilizationCtrl.removeListener(_onFieldChanged);
+
+        if (_keyCtrl.text != widget.account.apiKey) _keyCtrl.text = widget.account.apiKey;
+        if (_secretCtrl.text != widget.account.apiSecret) _secretCtrl.text = widget.account.apiSecret;
+        
+        // Only update utilization text if the numeric value is different enough (parsing issue check)
+        final currentUtil = double.tryParse(_utilizationCtrl.text) ?? 0.0;
+        if (currentUtil != widget.account.maxUtilizationPercentage) {
+             _utilizationCtrl.text = widget.account.maxUtilizationPercentage.toString();
+        }
+
+        _allowShort = widget.account.allowShortTrading;
+        _enabled = widget.account.enabled;
+
+        // Add listeners back
+        _keyCtrl.addListener(_onFieldChanged);
+        _secretCtrl.addListener(_onFieldChanged);
+        _utilizationCtrl.addListener(_onFieldChanged);
     }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _debounce?.cancel();
+    _keyCtrl.removeListener(_onFieldChanged);
+    _secretCtrl.removeListener(_onFieldChanged);
+    _utilizationCtrl.removeListener(_onFieldChanged);
+    _keyCtrl.dispose();
+    _secretCtrl.dispose();
+    _utilizationCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchData({bool isRefresh = false}) async {
-    if (_selectedAccount == null) return;
-
-    if (!isRefresh) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-    } else {
-      // Just clear error if any, keep content visible
-      setState(() => _error = null);
-    }
-
-    try {
-      final accountType = _selectedAccount!.isPaper ? 'paper' : 'live';
-      final accountId = _selectedAccount!.id;
-      
-      final results = await Future.wait([
-        _apiService.getAccountSummary(accountType, accountId: accountId),
-        _apiService.getPositions(accountType, accountId: accountId),
-        _apiService.getOrders(accountType, accountId: accountId),
-        _apiService.getTrades(accountType, accountId: accountId),
-      ]);
-
-      final account = results[0] as Account;
-      final positions = results[1] as List<Position>;
-      final openOrders = results[2] as List<Order>;
-      final trades = results[3] as List<Order>;
-      
-      final allOrders = [...openOrders, ...trades];
-      allOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-      if (mounted) {
-        setState(() {
-          _account = account;
-          _positions = positions;
-          _orders = allOrders;
-          _isLoading = false;
-        });
-        
-        // Removed manual snackbar triggering here since PullRefreshContainer handles it now
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString().replaceAll('Exception: ', '');
-          _isLoading = false;
-        });
-      }
-    }
+  void _onFieldChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 1000), _pushUpdate);
   }
 
-  Future<void> _onAccountSwitch(AlpacaAccount account) async {
+  void _pushUpdate() {
+    final utilization = double.tryParse(_utilizationCtrl.text) ?? 0.0;
+    
+    final updated = widget.account.copyWith(
+      apiKey: _keyCtrl.text,
+      apiSecret: _secretCtrl.text,
+      maxUtilizationPercentage: utilization,
+      allowShortTrading: _allowShort,
+      enabled: _enabled,
+    );
+    widget.onUpdate(updated);
+  }
+
+  void _onSwitchChanged(bool val) {
+    // For switches, we update local state and push update immediately 
+    // (or with small debounce if desired, but usually immediate is expected)
     setState(() {
-      _selectedAccount = account;
+       // Just trigger update, local variable handled by UI
     });
-    
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_account_id', account.id);
-    
-    _fetchData(isRefresh: false);
+    // However, if we don't update local vars, the UI won't switch until roundtrip. 
+    // Our build method uses _enabled/_allowShort variables.
+    // So we must update them.
+    // Actually, let's update them in the specific callbacks.
+    _pushUpdate();
   }
 
-  Future<void> _cancelOrder(Order order) async {
-    if (_selectedAccount == null) return;
-
-    final confirmed = await showDialog<bool>(
+  void _showGuide() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Order'),
-        content: Text('Are you sure you want to cancel the order for ${order.symbol}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final accountType = _selectedAccount!.isPaper ? 'paper' : 'live';
-      final accountId = _selectedAccount!.id;
-      
-      await _apiService.cancelOrder(accountType, order.id, accountId: accountId);
-      
-      if (mounted) {
-        setState(() {
-          _orders.removeWhere((o) => o.id == order.id);
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Order cancelled successfully')),
-        );
-        // We update locally for immediate feedback, so we don't need to force refresh
-        // _fetchData(isRefresh: true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to cancel order: ${e.toString().replaceAll('Exception: ', '')}'), backgroundColor: AppColors.error),
-        );
-      }
-    }
-  }
-
-  Future<void> _closePosition(Position position) async {
-    if (_selectedAccount == null) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Close Position'),
-        content: Text('Are you sure you want to close your position in ${position.symbol}? This will place a Market GTC order.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final accountType = _selectedAccount!.isPaper ? 'paper' : 'live';
-      final accountId = _selectedAccount!.id;
-      
-      await _apiService.closePosition(accountType, position.symbol, accountId: accountId);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Position close initiated')),
-        );
-        // Refresh to show the new closing order
-        _fetchData(isRefresh: true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to close position: ${e.toString().replaceAll('Exception: ', '')}'), backgroundColor: AppColors.error),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background, // Explicitly set background
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            floating: true,
-            pinned: true,
-            snap: false,
-            // Ensure background color is opaque dark for scroll under
-            backgroundColor: AppColors.background, 
-            surfaceTintColor: Colors.transparent,
-            centerTitle: false,
-            title: _buildHeaderDropdown(),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none),
-                onPressed: () {},
-                color: AppColors.textSecondary,
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
-                  color: AppColors.background, // Ensure tab bar has background
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  indicatorColor: AppColors.primary,
-                  labelColor: AppColors.primary,
-                  unselectedLabelColor: AppColors.textSecondary,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  dividerColor: Colors.transparent,
-                  labelStyle: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold),
-                  tabs: const [
-                    Tab(text: 'Summary'),
-                    Tab(text: 'Portfolio'),
-                    Tab(text: 'Orders'),
-                  ],
-                ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-          ),
-        ],
-        body: Container(
-          color: AppColors.background, // Ensure body background is dark
-          child: _isLoading 
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null 
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                        const SizedBox(height: 16),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            color: AppColors.error,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton.icon(
-                          onPressed: _loadPersistedAccount,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    PullRefreshContainer(
-                      onRefresh: _loadPersistedAccount,
-                      child: SummaryView(
-                        account: _account,
-                        positions: _positions,
-                        recentOrders: _orders.take(5).toList(),
-                        accountType: (_selectedAccount?.isPaper ?? true) ? 'paper' : 'live',
-                        onCancelOrder: _cancelOrder,
-                      ),
-                    ),
-                    PullRefreshContainer(
-                      onRefresh: _loadPersistedAccount,
-                      child: PortfolioView(
-                        positions: _positions,
-                        onClosePosition: _closePosition,
-                      ),
-                    ),
-                    PullRefreshContainer(
-                      onRefresh: _loadPersistedAccount,
-                      child: OrdersView(
-                        orders: _orders,
-                        onCancelOrder: _cancelOrder,
-                      ),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: const StepByStepGuide(),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeaderDropdown() {
-    if (_availableAccounts.isEmpty) {
-      return Text('Account Dashboard', style: AppTextStyles.headlineLarge);
-    }
+  @override
+  Widget build(BuildContext context) {
+    final hasKey = widget.account.apiKey.isNotEmpty;
+    final primaryColor = widget.isPaper ? AppColors.accent : AppColors.error;
+    final isVerified = widget.account.verified;
 
-    final current = _selectedAccount ?? _availableAccounts.first;
-    final isPaper = current.isPaper;
-
-    return PopupMenuButton<String>(
-      offset: const Offset(0, 40),
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: (isPaper ? AppColors.accent : AppColors.error).withOpacity(0.1),
-              shape: BoxShape.circle,
+          ListTile(
+            title: Row(
+              children: [
+                Text(widget.title, style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+                if (isVerified && hasKey) ...[
+                  const SizedBox(width: 12),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: _enabled,
+                      activeColor: primaryColor,
+                      onChanged: (val) {
+                        setState(() => _enabled = val);
+                        _onSwitchChanged(val);
+                      },
+                    ),
+                  ),
+                ],
+              ],
             ),
-            child: Icon(
-              isPaper ? Icons.description : Icons.flash_on,
-              color: isPaper ? AppColors.accent : AppColors.error,
-              size: 20,
+            subtitle: Row(
+              children: [
+                if (hasKey) ...[
+                   _buildBadge(isVerified ? 'VERIFIED' : 'UNVERIFIED', isVerified ? AppColors.success : AppColors.warning),
+                   if (!isVerified) ...[
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 24,
+                        child: OutlinedButton(
+                          onPressed: widget.onRetryVerification, 
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            side: BorderSide(color: AppColors.warning.withOpacity(0.5)),
+                            foregroundColor: AppColors.warning,
+                          ),
+                          child: const Text('Retry', style: TextStyle(fontSize: 10))
+                        ),
+                      )
+                   ]
+                ] else 
+                   _buildBadge('NO KEYS', AppColors.textDisabled),
+              ],
+            ),
+            trailing: IconButton(
+              icon: Icon(_expanded ? Icons.expand_less : Icons.edit),
+              color: AppColors.textSecondary,
+              onPressed: () => setState(() => _expanded = !_expanded),
             ),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Trading Account',
-                style: AppTextStyles.bodyMedium.copyWith(fontSize: 10, color: AppColors.textSecondary),
-              ),
-              Row(
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    current.label.isNotEmpty ? current.label : 'Account',
-                    style: AppTextStyles.headlineLarge.copyWith(fontSize: 16),
+                   // API Keys
+                  Row(
+                    children: [
+                      Text('API Keys', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _showGuide,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Row(
+                              children: [
+                                Icon(Icons.help_outline, size: 16, color: AppColors.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'How to get keys?',
+                                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  Icon(Icons.arrow_drop_down, size: 20, color: AppColors.textSecondary),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    controller: _keyCtrl,
+                    label: 'API Key ID',
+                    style: AppTextStyles.monoMedium,
+                    hint: 'Enter API Key',
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(
+                    controller: _secretCtrl,
+                    label: 'Secret Key',
+                    style: AppTextStyles.monoMedium,
+                    hint: 'Enter Secret Key',
+                    obscureText: true,
+                  ),
+                  
+                  if (!hasKey) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Please enter your API keys.',
+                                style: AppTextStyles.bodySmall.copyWith(color: AppColors.warning),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ] else if (!isVerified) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                widget.verificationError ?? 'Account verification failed. Please check your keys.',
+                                style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ] else ...[
+                      // Only show settings if verified and keys present
+                      const SizedBox(height: 24),
+                      
+                      // Configuration
+                      Text('Trading Configuration', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      
+                      // Short Trading
+                      SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('Allow Short Trading', style: AppTextStyles.bodyMedium),
+                          value: _allowShort,
+                          activeColor: primaryColor,
+                          onChanged: (val) {
+                             setState(() => _allowShort = val);
+                             _onSwitchChanged(val);
+                          },
+                       ),
+                       
+                       const SizedBox(height: 16),
+                       
+                       // Utilization
+                       CustomTextField(
+                         controller: _utilizationCtrl,
+                         label: 'Max Portfolio Utilization',
+                         style: AppTextStyles.monoMedium,
+                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                         suffixIcon: const Padding(
+                           padding: EdgeInsets.all(14.0),
+                           child: Text('%', style: TextStyle(color: AppColors.textSecondary)),
+                         ),
+                         hint: '100',
+                       ),
+                       const SizedBox(height: 8),
+                       Text(
+                          'Percentage of total equity to use for trading (can be > 100% for margin)',
+                          style: AppTextStyles.bodySmall.copyWith(color: AppColors.textDisabled),
+                       ),
+                  ],
                 ],
               ),
-            ],
-          ),
+            )
         ],
       ),
-      itemBuilder: (context) => _availableAccounts.map((account) {
-        return _buildPopupItem(account);
-      }).toList(),
-      onSelected: (id) {
-        final account = _availableAccounts.firstWhere((a) => a.id == id);
-        _onAccountSwitch(account);
-      },
     );
   }
 
-  PopupMenuItem<String> _buildPopupItem(AlpacaAccount account) {
-    final idDisplay = account.id.split('-').last;
-    final isPaper = account.isPaper;
-    
-    return PopupMenuItem(
-      value: account.id,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: (isPaper ? AppColors.accent : AppColors.error).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: (isPaper ? AppColors.accent : AppColors.error).withOpacity(0.3))
-            ),
-            child: Text(
-              isPaper ? 'PAPER' : 'LIVE', 
-              style: TextStyle(
-                fontSize: 10, 
-                fontWeight: FontWeight.bold, 
-                color: isPaper ? AppColors.accent : AppColors.error
-              )
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              account.label.isNotEmpty ? account.label : 'Account', 
-              style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w500)
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            idDisplay,
-            style: AppTextStyles.bodyMedium.copyWith(fontSize: 12, color: AppColors.textDisabled),
-          ),
-        ],
+  Widget _buildBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.5))
+      ),
+      child: Text(
+        text, 
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)
       ),
     );
   }

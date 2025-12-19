@@ -1,94 +1,75 @@
 class AlpacaAccount {
   final String id;
-  final String label;
   final String apiKey;
   final String apiSecret;
-  final bool isPaper;
   final bool verified;
   final String? alpacaAccountId;
+  final String? accountNumber;
+  final double maxUtilizationPercentage;
+  final bool allowShortTrading;
+  final bool enabled;
 
   AlpacaAccount({
     required this.id,
-    required this.label,
     required this.apiKey,
     required this.apiSecret,
-    required this.isPaper,
     this.verified = false,
     this.alpacaAccountId,
+    this.accountNumber,
+    this.maxUtilizationPercentage = 100.0,
+    this.allowShortTrading = true,
+    this.enabled = true,
   });
 
   factory AlpacaAccount.fromJson(Map<String, dynamic> json) {
     return AlpacaAccount(
       id: json['id'],
-      label: json['label'],
-      apiKey: json['apiKey'],
-      apiSecret: json['apiSecret'],
-      isPaper: json['isPaper'] ?? true,
+      apiKey: json['apiKey'] ?? '',
+      apiSecret: json['apiSecret'] ?? '',
       verified: json['verified'] ?? false,
       alpacaAccountId: json['alpacaAccountId'],
+      accountNumber: json['accountNumber'],
+      maxUtilizationPercentage: (json['maxUtilizationPercentage'] as num?)?.toDouble() ?? 100.0,
+      allowShortTrading: json['allowShortTrading'] ?? true,
+      enabled: json['enabled'] ?? true,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'label': label,
       'apiKey': apiKey,
       'apiSecret': apiSecret,
-      'isPaper': isPaper,
       'verified': verified,
       if (alpacaAccountId != null) 'alpacaAccountId': alpacaAccountId,
+      if (accountNumber != null) 'accountNumber': accountNumber,
+      'maxUtilizationPercentage': maxUtilizationPercentage,
+      'allowShortTrading': allowShortTrading,
+      'enabled': enabled,
     };
   }
 
   AlpacaAccount copyWith({
     String? id,
-    String? label,
     String? apiKey,
     String? apiSecret,
-    bool? isPaper,
     bool? verified,
     String? alpacaAccountId,
+    String? accountNumber,
+    double? maxUtilizationPercentage,
+    bool? allowShortTrading,
+    bool? enabled,
   }) {
     return AlpacaAccount(
       id: id ?? this.id,
-      label: label ?? this.label,
       apiKey: apiKey ?? this.apiKey,
       apiSecret: apiSecret ?? this.apiSecret,
-      isPaper: isPaper ?? this.isPaper,
       verified: verified ?? this.verified,
       alpacaAccountId: alpacaAccountId ?? this.alpacaAccountId,
-    );
-  }
-}
-
-class LinkedAccountIds {
-  final String? paperAccountId;
-  final String? liveAccountId;
-
-  LinkedAccountIds({this.paperAccountId, this.liveAccountId});
-
-  factory LinkedAccountIds.fromJson(Map<String, dynamic> json) {
-    return LinkedAccountIds(
-      paperAccountId: json['paperAccountId'],
-      liveAccountId: json['liveAccountId'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'paperAccountId': paperAccountId,
-      'liveAccountId': liveAccountId,
-    };
-  }
-  
-  LinkedAccountIds copyWith({
-    String? paperAccountId,
-    String? liveAccountId,
-  }) {
-    return LinkedAccountIds(
-      paperAccountId: paperAccountId ?? this.paperAccountId,
-      liveAccountId: liveAccountId ?? this.liveAccountId,
+      accountNumber: accountNumber ?? this.accountNumber,
+      maxUtilizationPercentage: maxUtilizationPercentage ?? this.maxUtilizationPercentage,
+      allowShortTrading: allowShortTrading ?? this.allowShortTrading,
+      enabled: enabled ?? this.enabled,
     );
   }
 }
@@ -97,21 +78,15 @@ class User {
   final String? id;
   final String userId;
   final bool isAdmin;
-  final List<AlpacaAccount> alpacaAccounts;
-  final bool enableLiveTrading;
-  final bool enablePaperTrading;
-  final LinkedAccountIds? linkAccountSeasonal;
-  final LinkedAccountIds? linkAccountDaytrade;
+  final AlpacaAccount? alpacaPaperAccount;
+  final AlpacaAccount? alpacaLiveAccount;
 
   User({
     this.id,
     required this.userId,
     this.isAdmin = false,
-    required this.alpacaAccounts,
-    this.enableLiveTrading = false,
-    this.enablePaperTrading = true,
-    this.linkAccountSeasonal,
-    this.linkAccountDaytrade,
+    this.alpacaPaperAccount,
+    this.alpacaLiveAccount,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -119,16 +94,11 @@ class User {
       id: json['id'],
       userId: json['userId'],
       isAdmin: json['isAdmin'] ?? false,
-      alpacaAccounts: (json['alpacaAccounts'] as List?)
-          ?.map((e) => AlpacaAccount.fromJson(e as Map<String, dynamic>))
-          .toList() ?? [],
-      enableLiveTrading: json['enableLiveTrading'] ?? false,
-      enablePaperTrading: json['enablePaperTrading'] ?? true,
-      linkAccountSeasonal: json['linkAccountSeasonal'] != null
-          ? LinkedAccountIds.fromJson(json['linkAccountSeasonal'])
+      alpacaPaperAccount: json['alpacaPaperAccount'] != null
+          ? AlpacaAccount.fromJson(json['alpacaPaperAccount'])
           : null,
-      linkAccountDaytrade: json['linkAccountDaytrade'] != null
-          ? LinkedAccountIds.fromJson(json['linkAccountDaytrade'])
+      alpacaLiveAccount: json['alpacaLiveAccount'] != null
+          ? AlpacaAccount.fromJson(json['alpacaLiveAccount'])
           : null,
     );
   }
@@ -138,11 +108,8 @@ class User {
       if (id != null) 'id': id,
       'userId': userId,
       'isAdmin': isAdmin,
-      'alpacaAccounts': alpacaAccounts.map((e) => e.toJson()).toList(),
-      'enableLiveTrading': enableLiveTrading,
-      'enablePaperTrading': enablePaperTrading,
-      if (linkAccountSeasonal != null) 'linkAccountSeasonal': linkAccountSeasonal!.toJson(),
-      if (linkAccountDaytrade != null) 'linkAccountDaytrade': linkAccountDaytrade!.toJson(),
+      if (alpacaPaperAccount != null) 'alpacaPaperAccount': alpacaPaperAccount!.toJson(),
+      if (alpacaLiveAccount != null) 'alpacaLiveAccount': alpacaLiveAccount!.toJson(),
     };
   }
 
@@ -150,22 +117,15 @@ class User {
     String? id,
     String? userId,
     bool? isAdmin,
-    List<AlpacaAccount>? alpacaAccounts,
-    bool? enableLiveTrading,
-    bool? enablePaperTrading,
-    LinkedAccountIds? linkAccountSeasonal,
-    LinkedAccountIds? linkAccountDaytrade,
+    AlpacaAccount? alpacaPaperAccount,
+    AlpacaAccount? alpacaLiveAccount,
   }) {
     return User(
       id: id ?? this.id,
       userId: userId ?? this.userId,
       isAdmin: isAdmin ?? this.isAdmin,
-      alpacaAccounts: alpacaAccounts ?? this.alpacaAccounts,
-      enableLiveTrading: enableLiveTrading ?? this.enableLiveTrading,
-      enablePaperTrading: enablePaperTrading ?? this.enablePaperTrading,
-      linkAccountSeasonal: linkAccountSeasonal ?? this.linkAccountSeasonal,
-      linkAccountDaytrade: linkAccountDaytrade ?? this.linkAccountDaytrade,
+      alpacaPaperAccount: alpacaPaperAccount ?? this.alpacaPaperAccount,
+      alpacaLiveAccount: alpacaLiveAccount ?? this.alpacaLiveAccount,
     );
   }
 }
-

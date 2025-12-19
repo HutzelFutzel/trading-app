@@ -259,3 +259,6 @@ class _PortfolioPerformanceChartState extends State<PortfolioPerformanceChart> {
   }
 }
 
+
+
+

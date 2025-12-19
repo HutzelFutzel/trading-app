@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:io' show Platform;
+
 
 class ConfigService {
   static final ConfigService _instance = ConfigService._internal();
@@ -48,12 +48,22 @@ class ConfigService {
   String get apiBaseUrl {
     String url = _config?['apiBaseUrl'] ?? 'http://localhost:8000';
     
-    // Fix for iOS Simulator: 10.0.2.2 works on Android Emulator but fails on iOS.
-    // Replace it with localhost or 127.0.0.1 for iOS.
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-      if (url.contains('10.0.2.2')) {
-        url = url.replaceAll('10.0.2.2', '127.0.0.1');
-        debugPrint('ConfigService: Rewrote API URL for iOS to $url');
+    if (!kIsWeb) {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        // Android Emulator: localhost refers to the emulator itself.
+        // Use 10.0.2.2 to access the host machine.
+        if (url.contains('localhost')) {
+          url = url.replaceAll('localhost', '10.0.2.2');
+        } else if (url.contains('127.0.0.1')) {
+          url = url.replaceAll('127.0.0.1', '10.0.2.2');
+        }
+        debugPrint('ConfigService: Rewrote API URL for Android to $url');
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // iOS Simulator: 10.0.2.2 fails. Use localhost or 127.0.0.1.
+        if (url.contains('10.0.2.2')) {
+          url = url.replaceAll('10.0.2.2', '127.0.0.1');
+          debugPrint('ConfigService: Rewrote API URL for iOS to $url');
+        }
       }
     }
     

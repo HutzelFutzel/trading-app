@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import '../models/user.dart';
-import '../services/api_service.dart';
-import '../services/config_service.dart';
 import '../theme/app_theme.dart';
-import 'account_screen.dart';
+import 'dashboard_screen.dart';
 import 'seasonal_strategy_screen.dart';
-import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,33 +13,15 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  bool _isAdmin = false;
-  late ApiService _apiService;
 
   final List<Widget> _screens = const [
-    AccountScreen(),
+    DashboardScreen(),
     SeasonalStrategyScreen(),
-    SettingsScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService(baseUrl: ConfigService().apiBaseUrl);
-    _checkAdminStatus();
-  }
-
-  Future<void> _checkAdminStatus() async {
-    try {
-      final User user = await _apiService.getUser();
-      if (mounted) {
-        setState(() {
-          _isAdmin = user.isAdmin;
-        });
-      }
-    } catch (e) {
-      debugPrint('Failed to check admin status: $e');
-    }
   }
 
   void _onItemTapped(int index) {
@@ -75,10 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
             offset: const Offset(0, 10),
           ),
         ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.1),
-          width: 0.5,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 0.5),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -87,10 +62,18 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildNavItem(0, Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Account'),
-              _buildNavItem(1, Icons.calendar_month_outlined, Icons.calendar_month, 'Seasonal'),
-              _buildNavItem(2, _isAdmin ? Icons.manage_accounts_outlined : Icons.person_outline, 
-                            _isAdmin ? Icons.manage_accounts : Icons.person, 'Settings'),
+              _buildNavItem(
+                0,
+                Icons.dashboard_outlined,
+                Icons.dashboard,
+                'Dashboard',
+              ),
+              _buildNavItem(
+                1,
+                Icons.calendar_month_outlined,
+                Icons.calendar_month,
+                'Seasonal',
+              ),
             ],
           ),
         ),
@@ -98,7 +81,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+  Widget _buildNavItem(
+    int index,
+    IconData icon,
+    IconData activeIcon,
+    String label,
+  ) {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
       onTap: () => _onItemTapped(index),

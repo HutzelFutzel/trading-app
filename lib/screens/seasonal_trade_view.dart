@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/seasonal_trade.dart';
 import '../models/seasonal_strategy_user_settings.dart';
+import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/config_service.dart';
 import '../theme/app_theme.dart';
@@ -20,6 +21,7 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
   late ApiService _apiService;
   
   SeasonalStrategyUserSettings? _userSettings;
+  User? _user;
   bool _isLoading = true;
   bool _showAllThreads = false;
   Timer? _debounceTimer;
@@ -36,10 +38,10 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
     
     if (widget.userSettings != null) {
       _userSettings = widget.userSettings;
-      _isLoading = false;
-      _checkThreadVisibility();
+      // Still need to fetch user for verification status
+      _fetchData(fetchSettings: false);
     } else {
-      _fetchSettings();
+      _fetchData(fetchSettings: true);
     }
   }
 
@@ -51,11 +53,22 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
     }
   }
 
-  Future<void> _fetchSettings() async {
+  Future<void> _fetchData({bool fetchSettings = true}) async {
     try {
-      final settings = await _apiService.getSeasonalStrategyUserSettings();
+      final futures = <Future<dynamic>>[
+         _apiService.getUser(),
+      ];
+      if (fetchSettings) {
+        futures.add(_apiService.getSeasonalStrategyUserSettings());
+      }
+
+      final results = await Future.wait(futures);
+      final user = results[0] as User;
+      final settings = fetchSettings ? results[1] as SeasonalStrategyUserSettings : _userSettings;
+
       if (mounted) {
         setState(() {
+          _user = user;
           _userSettings = settings;
           _isLoading = false;
           _checkThreadVisibility();
@@ -65,7 +78,7 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load settings: $e')),
+          SnackBar(content: Text('Failed to load data: $e')),
         );
       }
     }
@@ -77,37 +90,107 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
     super.dispose();
   }
 
-  Future<void> _updateSetting({bool? paper, bool? live, int? thread}) async {
+  Future<void> _saveSettings(SeasonalStrategyUserSettings newSettings) async {
+    final oldSettings = _userSettings;
+    setState(() => _userSettings = newSettings);
+    try {
+      await _apiService.saveSeasonalStrategyUserSettings(newSettings);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _userSettings = oldSettings);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save settings: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateThread(int thread) async {
     if (_userSettings == null || widget.trade.id == null) return;
     
     final tradeId = widget.trade.id!;
+    final newSettings = _userSettings!.assignTradeToThread(tradeId, thread);
     
     // Optimistic Update
-    var newSettings = _userSettings!;
-    if (paper != null) newSettings = newSettings.togglePaper(tradeId, paper);
-    if (live != null) newSettings = newSettings.toggleLive(tradeId, live);
-    if (thread != null) newSettings = newSettings.assignTradeToThread(tradeId, thread);
-
     final oldSettings = _userSettings;
     setState(() => _userSettings = newSettings);
 
     try {
-      if (thread != null) {
-        final updated = await _apiService.updateThreadAssignment(tradeId, thread);
-        if (mounted) {
-           setState(() => _userSettings = updated);
-        }
-      } else {
-        await _apiService.saveSeasonalStrategyUserSettings(newSettings);
+      final updated = await _apiService.updateThreadAssignment(tradeId, thread);
+      if (mounted) {
+         setState(() => _userSettings = updated);
       }
     } catch (e) {
       if (mounted) {
          setState(() => _userSettings = oldSettings);
          ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Failed to save settings: $e')),
+           SnackBar(content: Text('Failed to save thread: $e')),
          );
       }
     }
+  }
+
+  Future<void> _setMode(bool isLive) async {
+    if (_userSettings == null || widget.trade.id == null) return;
+    
+    // Check verification
+    if (isLive) {
+      if (!(_user?.alpacaLiveAccount?.verified ?? false)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Live account not verified')),
+        );
+        return;
+      }
+    } else {
+       if (!(_user?.alpacaPaperAccount?.verified ?? false)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Paper account not verified')),
+        );
+        return;
+      }
+    }
+
+    final tradeId = widget.trade.id!;
+    var newSettings = _userSettings!;
+    
+    if (isLive) {
+        newSettings = newSettings.toggleLive(tradeId, true);
+        newSettings = newSettings.togglePaper(tradeId, false);
+    } else {
+        newSettings = newSettings.togglePaper(tradeId, true);
+        newSettings = newSettings.toggleLive(tradeId, false);
+    }
+    
+    await _saveSettings(newSettings);
+  }
+
+  Future<void> _unsubscribe() async {
+      if (_userSettings == null || widget.trade.id == null) return;
+      
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Unsubscribe?', style: TextStyle(color: AppColors.textPrimary)),
+            content: const Text('This will remove the trade from all execution lists and threads.', style: TextStyle(color: AppColors.textSecondary)),
+            actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false), 
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary))
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true), 
+                  child: const Text('Unsubscribe', style: TextStyle(color: AppColors.error))
+                ),
+            ],
+        ),
+      );
+      
+      if (confirmed != true) return;
+
+      final newSettings = _userSettings!.unsubscribe(widget.trade.id!);
+      await _saveSettings(newSettings);
+      if (mounted) Navigator.pop(context);
   }
 
   String _formatDate(String dateStr) {
@@ -163,8 +246,14 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
 
     final tradeId = widget.trade.id!;
     final currentThread = _userSettings!.getThreadForTrade(tradeId);
-    final paperActive = _userSettings!.isPaperActive(tradeId);
     final liveActive = _userSettings!.isLiveActive(tradeId);
+    
+    // Determine active mode
+    final isLiveMode = liveActive;
+    
+    // Verification Status
+    final paperVerified = _user?.alpacaPaperAccount?.verified ?? false;
+    final liveVerified = _user?.alpacaLiveAccount?.verified ?? false;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -186,6 +275,41 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
               ),
             ],
           ),
+          const SizedBox(height: 24),
+          
+          // Execution Mode Toggle
+          Text('Execution Mode', style: AppTextStyles.bodyMedium),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildModeButton(
+                    label: 'PAPER',
+                    isActive: !isLiveMode, // If not live, assume paper (since subscribed)
+                    isEnabled: paperVerified,
+                    onTap: () => _setMode(false),
+                    activeColor: AppColors.accent,
+                  ),
+                ),
+                Expanded(
+                  child: _buildModeButton(
+                    label: 'LIVE',
+                    isActive: isLiveMode,
+                    isEnabled: liveVerified,
+                    onTap: () => _setMode(true),
+                    activeColor: AppColors.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
           const SizedBox(height: 24),
           
           // Thread Selector
@@ -212,26 +336,57 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
           const SizedBox(height: 12),
           _buildThreadGrid(currentThread),
           
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           Divider(color: Colors.white.withOpacity(0.05)),
-          const SizedBox(height: 8),
-
-          // Switches
-          _buildSwitchRow(
-            'Paper Trading', 
-            'Simulated execution',
-            paperActive,
-            (val) => _updateSetting(paper: val),
-            AppColors.accent,
-          ),
-          _buildSwitchRow(
-            'Live Trading', 
-            'Real money execution',
-            liveActive,
-            (val) => _updateSetting(live: val),
-            AppColors.error,
+          const SizedBox(height: 16),
+          
+          // Unsubscribe
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _unsubscribe,
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Unsubscribe from Trade'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildModeButton({
+    required String label,
+    required bool isActive,
+    required bool isEnabled,
+    required VoidCallback onTap,
+    required Color activeColor,
+  }) {
+    return GestureDetector(
+      onTap: isEnabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? activeColor.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isActive ? Border.all(color: activeColor) : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isEnabled 
+                ? (isActive ? activeColor : AppColors.textSecondary)
+                : AppColors.textDisabled,
+              fontWeight: FontWeight.bold,
+              decoration: isEnabled ? null : TextDecoration.lineThrough,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -266,7 +421,7 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
      final color = AppTheme.threadColors[threadNum] ?? Colors.grey;
 
      return GestureDetector(
-        onTap: () => _updateSetting(thread: threadNum),
+        onTap: () => _updateThread(threadNum),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: 50,
@@ -293,38 +448,6 @@ class _SeasonalTradeViewState extends State<SeasonalTradeView> {
           ),
         ),
       );
-  }
-
-  Widget _buildSwitchRow(
-    String title, 
-    String subtitle, 
-    bool value, 
-    Function(bool) onChanged,
-    Color activeColor,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
-              Text(subtitle, style: AppTextStyles.bodyMedium),
-            ],
-          ),
-          Switch(
-            value: value, 
-            onChanged: onChanged,
-            activeColor: activeColor,
-            activeTrackColor: activeColor.withOpacity(0.3),
-            inactiveThumbColor: AppColors.textDisabled,
-            inactiveTrackColor: Colors.black.withOpacity(0.2),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildDetailsSection() {
