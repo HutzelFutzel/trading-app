@@ -99,7 +99,7 @@ class _SignInScreenState extends State<SignInScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.primary.withOpacity(0.15),
+                color: AppColors.primary.withValues(alpha: 0.15),
                 // filter removed
               ),
             ),
@@ -112,7 +112,7 @@ class _SignInScreenState extends State<SignInScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.secondary.withOpacity(0.15),
+                color: AppColors.secondary.withValues(alpha: 0.15),
               ),
             ),
           ),

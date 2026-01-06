@@ -3,6 +3,7 @@ import '../../models/seasonal_trade.dart';
 import '../../models/seasonal_strategy_user_settings.dart';
 import '../../services/api_service.dart';
 import '../../services/config_service.dart';
+import '../../services/seasonal_data_service.dart';
 import '../../theme/app_theme.dart';
 import '../../screens/admin_seasonal_trade_edit_view.dart';
 import '../../screens/admin_seasonal_trade_create_view.dart';
@@ -124,6 +125,10 @@ class _SeasonalTradesAdminViewState extends State<SeasonalTradesAdminView> {
     );
 
     if (result == true) {
+      if (trade.id != null) {
+        SeasonalDataService().clearStatisticsCache(trade.id!);
+      }
+      SeasonalDataService().fetchData(forceRefresh: true);
       _init(); // Refresh all
     }
   }
@@ -161,34 +166,6 @@ class _SeasonalTradesAdminViewState extends State<SeasonalTradesAdminView> {
     }
   }
 
-  bool _isOngoing(SeasonalTrade trade) {
-    final now = DateTime.now();
-    try {
-      final openParts = trade.openDate.split('-');
-      final closeParts = trade.closeDate.split('-');
-      
-      final openMonth = int.parse(openParts[0]);
-      final openDay = int.parse(openParts[1]);
-      final closeMonth = int.parse(closeParts[0]);
-      final closeDay = int.parse(closeParts[1]);
-
-      if (closeMonth < openMonth) {
-        final currentMD = now.month * 100 + now.day;
-        final openMD = openMonth * 100 + openDay;
-        final closeMD = closeMonth * 100 + closeDay;
-        
-        return currentMD >= openMD || currentMD <= closeMD;
-      } else {
-        final currentMD = now.month * 100 + now.day;
-        final openMD = openMonth * 100 + openDay;
-        final closeMD = closeMonth * 100 + closeDay;
-        return currentMD >= openMD && currentMD <= closeMD;
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
   int _daysUntilOpen(String dateStr) {
     try {
       final now = DateTime.now();
@@ -213,8 +190,8 @@ class _SeasonalTradesAdminViewState extends State<SeasonalTradesAdminView> {
     }).toList();
 
     list.sort((a, b) {
-      final ongoingA = _isOngoing(a);
-      final ongoingB = _isOngoing(b);
+      final ongoingA = a.isOngoing;
+      final ongoingB = b.isOngoing;
 
       if (ongoingA && !ongoingB) return -1;
       if (!ongoingA && ongoingB) return 1;
@@ -284,7 +261,7 @@ class _SeasonalTradesAdminViewState extends State<SeasonalTradesAdminView> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
         color: AppColors.background,
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
       ),
       child: Column(
         children: [
@@ -371,7 +348,7 @@ class _SeasonalTradesAdminViewState extends State<SeasonalTradesAdminView> {
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20), 
-            side: BorderSide(color: Colors.white.withOpacity(0.1))
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1))
           ),
           onSelected: (_) {
              if (controller.isOpen) controller.close(); else controller.open();
@@ -418,32 +395,6 @@ class AdminTradeCard extends StatelessWidget {
       this.userRules,
   });
 
-  bool _isOngoing(SeasonalTrade trade) {
-    final now = DateTime.now();
-    try {
-      final openParts = trade.openDate.split('-');
-      final closeParts = trade.closeDate.split('-');
-      final openMonth = int.parse(openParts[0]);
-      final openDay = int.parse(openParts[1]);
-      final closeMonth = int.parse(closeParts[0]);
-      final closeDay = int.parse(closeParts[1]);
-
-      if (closeMonth < openMonth) {
-        final currentMD = now.month * 100 + now.day;
-        final openMD = openMonth * 100 + openDay;
-        final closeMD = closeMonth * 100 + closeDay;
-        return currentMD >= openMD || currentMD <= closeMD;
-      } else {
-        final currentMD = now.month * 100 + now.day;
-        final openMD = openMonth * 100 + openDay;
-        final closeMD = closeMonth * 100 + closeDay;
-        return currentMD >= openMD && currentMD <= closeMD;
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
   String _formatDatePretty(String mmdd) {
     try {
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -458,7 +409,7 @@ class AdminTradeCard extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    final isOngoing = _isOngoing(trade);
+    final isOngoing = trade.isOngoing;
     
     // We removed paper/live active state from global settings tracking in admin view
     // Since it's now per-user preference in SeasonalTradeUserSettings
@@ -467,13 +418,13 @@ class AdminTradeCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isOngoing 
-          ? AppColors.primary.withOpacity(0.05) 
+          ? AppColors.primary.withValues(alpha: 0.05) 
           : AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isOngoing 
-            ? AppColors.primary.withOpacity(0.5) 
-            : Colors.white.withOpacity(0.05),
+            ? AppColors.primary.withValues(alpha: 0.5) 
+            : Colors.white.withValues(alpha: 0.05),
           width: isOngoing ? 1.5 : 1
         ),
       ),
@@ -516,13 +467,13 @@ class AdminTradeCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: trade.direction == 'Long' 
-                              ? AppTheme.long.withOpacity(0.1) 
-                              : AppTheme.short.withOpacity(0.1),
+                              ? AppTheme.long.withValues(alpha: 0.1) 
+                              : AppTheme.short.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: trade.direction == 'Long' 
-                                ? AppTheme.long.withOpacity(0.3) 
-                                : AppTheme.short.withOpacity(0.3),
+                                ? AppTheme.long.withValues(alpha: 0.3) 
+                                : AppTheme.short.withValues(alpha: 0.3),
                             )
                           ),
                           child: Text(

@@ -164,7 +164,7 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             height: 1,
           ),
         ),
@@ -212,7 +212,7 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           padding: const EdgeInsets.all(4),
           child: Row(
@@ -236,9 +236,9 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
         Container(
            padding: const EdgeInsets.all(12),
            decoration: BoxDecoration(
-             color: AppColors.primary.withOpacity(0.1),
+             color: AppColors.primary.withValues(alpha: 0.1),
              borderRadius: BorderRadius.circular(8),
-             border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+             border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
            ),
            child: Row(
              crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,7 +323,7 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
@@ -331,9 +331,9 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
           Container(
             width: 40, height: 40,
             decoration: BoxDecoration(
-              color: threadColor.withOpacity(0.1),
+              color: threadColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
-              border: Border.all(color: threadColor.withOpacity(0.3)),
+              border: Border.all(color: threadColor.withValues(alpha: 0.3)),
             ),
             child: Center(
               child: Text(
@@ -356,7 +356,7 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
                      Container(
                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                        decoration: BoxDecoration(
-                         color: AppColors.accent.withOpacity(0.1),
+                         color: AppColors.accent.withValues(alpha: 0.1),
                          borderRadius: BorderRadius.circular(4),
                        ),
                        child: Text('$paperCount Paper', style: const TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.bold)),
@@ -365,7 +365,7 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
                      Container(
                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                        decoration: BoxDecoration(
-                         color: AppColors.error.withOpacity(0.1),
+                         color: AppColors.error.withValues(alpha: 0.1),
                          borderRadius: BorderRadius.circular(4),
                        ),
                        child: Text('$liveCount Live', style: const TextStyle(color: AppColors.error, fontSize: 10, fontWeight: FontWeight.bold)),
@@ -470,7 +470,7 @@ class _SeasonalStrategySettingsViewState extends State<SeasonalStrategySettingsV
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         suffixText: suffix,
         suffixStyle: TextStyle(color: AppColors.textSecondary),
-        fillColor: AppColors.surfaceHighlight.withOpacity(0.3),
+        fillColor: AppColors.surfaceHighlight.withValues(alpha: 0.3),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
       ),
       onFieldSubmitted: (val) {

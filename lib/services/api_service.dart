@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/account_data.dart';
 import '../models/portfolio_history.dart';
 import '../models/seasonal_trade.dart';
+import '../models/seasonal_trade_statistic.dart';
 import '../models/seasonal_strategy_settings.dart';
 import '../models/seasonal_strategy_user_settings.dart';
 import '../models/user.dart';
@@ -197,6 +198,34 @@ class ApiService {
     }
   }
 
+  Future<List<SeasonalTradeSingleStatistic>> getSeasonalTradeStatistics(String tradeId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/seasonal-trades/$tradeId/statistics'),
+      headers: await _getHeaders(),
+    );
+    _checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => SeasonalTradeSingleStatistic.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load seasonal trade statistics');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSeasonalEquity(String tradeId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/seasonal-trades/$tradeId/equity'),
+      headers: await _getHeaders(),
+    );
+    _checkUnauthorized(response);
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((e) => e as Map<String, dynamic>).toList();
+    } else {
+      throw Exception('Failed to load seasonal equity');
+    }
+  }
+
   Future<SeasonalTrade> createSeasonalTrade(SeasonalTrade trade) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/seasonal-trades'),
@@ -231,6 +260,17 @@ class ApiService {
     _checkUnauthorized(response);
     if (response.statusCode != 200) {
       throw Exception('Failed to delete seasonal trade');
+    }
+  }
+
+  Future<void> recalculateStatistics() async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/seasonal-trades/maintenance/recalculate-statistics'),
+      headers: await _getHeaders(),
+    );
+    _checkUnauthorized(response);
+    if (response.statusCode != 202 && response.statusCode != 200) {
+      throw Exception('Failed to trigger statistics recalculation');
     }
   }
 

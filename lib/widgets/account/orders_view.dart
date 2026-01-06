@@ -52,7 +52,7 @@ class OrdersView extends StatelessWidget {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: (isBuy ? AppColors.primary : AppColors.warning)
-                                  .withOpacity(0.1),
+                                  .withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -88,11 +88,11 @@ class OrdersView extends StatelessWidget {
                                     horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: _getStatusColor(order.status)
-                                      .withOpacity(0.1),
+                                      .withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                       color: _getStatusColor(order.status)
-                                          .withOpacity(0.3)),
+                                          .withValues(alpha: 0.3)),
                                 ),
                                 child: Text(
                                   order.status.toUpperCase(),
@@ -119,11 +119,11 @@ class OrdersView extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.error.withOpacity(0.1),
+                                        color: AppColors.error.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(4),
                                         border: Border.all(
                                             color:
-                                                AppColors.error.withOpacity(0.3)),
+                                                AppColors.error.withValues(alpha: 0.3)),
                                       ),
                                       child: Text(
                                         'CANCEL',
@@ -152,9 +152,9 @@ class OrdersView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
+        color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

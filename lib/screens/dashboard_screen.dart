@@ -329,7 +329,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               preferredSize: const Size.fromHeight(48),
               child: Container(
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+                  border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                   color: AppColors.background, // Ensure tab bar has background
                 ),
                 child: TabBar(
@@ -364,7 +364,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: AppColors.primary.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.account_balance_wallet_outlined, size: 64, color: AppColors.primary),
@@ -519,9 +519,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: (isPaper ? AppColors.accent : AppColors.error).withOpacity(0.1),
+              color: (isPaper ? AppColors.accent : AppColors.error).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: (isPaper ? AppColors.accent : AppColors.error).withOpacity(0.3))
+              border: Border.all(color: (isPaper ? AppColors.accent : AppColors.error).withValues(alpha: 0.3))
             ),
             child: Text(
               isPaper ? 'PAPER' : 'LIVE', 

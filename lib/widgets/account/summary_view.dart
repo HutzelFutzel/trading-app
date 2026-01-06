@@ -80,7 +80,7 @@ class SummaryView extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.3),
+            color: AppColors.primary.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -92,7 +92,7 @@ class SummaryView extends StatelessWidget {
           // Total Equity
           Text(
             'Total Equity',
-            style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withOpacity(0.8)),
+            style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.8)),
           ),
           const SizedBox(height: 8),
           Text(
@@ -140,7 +140,7 @@ class SummaryView extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withOpacity(0.8), fontSize: 12),
+          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 4),
         Text(
@@ -157,7 +157,7 @@ class SummaryView extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withOpacity(0.8), fontSize: 12),
+          style: AppTextStyles.bodyMedium.copyWith(color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 4),
         Text(
@@ -214,7 +214,7 @@ class SummaryView extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (isProfit ? AppColors.success : AppColors.error).withOpacity(0.1),
+                    color: (isProfit ? AppColors.success : AppColors.error).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -249,7 +249,7 @@ class SummaryView extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: (isBuy ? AppColors.primary : AppColors.warning).withOpacity(0.1),
+                    color: (isBuy ? AppColors.primary : AppColors.warning).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -297,9 +297,9 @@ class SummaryView extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.error.withOpacity(0.1),
+                              color: AppColors.error.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                             ),
                             child: Text(
                               'CANCEL',

@@ -139,7 +139,7 @@ class _SeasonalCalendarViewState extends State<SeasonalCalendarView> {
             outsideDaysVisible: false,
             weekendTextStyle: TextStyle(color: theme.colorScheme.primary),
             todayDecoration: BoxDecoration(
-              color: theme.colorScheme.primary.withOpacity(0.3),
+              color: theme.colorScheme.primary.withValues(alpha: 0.3),
               shape: BoxShape.circle,
             ),
             selectedDecoration: BoxDecoration(
@@ -175,7 +175,7 @@ class _SeasonalCalendarViewState extends State<SeasonalCalendarView> {
                      margin: const EdgeInsets.all(6.0),
                      alignment: Alignment.center,
                      decoration: BoxDecoration(
-                       color: (_highlightedTrade!.direction == 'Long' ? AppTheme.long : AppTheme.short).withOpacity(0.2),
+                       color: (_highlightedTrade!.direction == 'Long' ? AppTheme.long : AppTheme.short).withValues(alpha: 0.2),
                        shape: BoxShape.circle,
                      ),
                      child: Text(
@@ -222,7 +222,7 @@ class _SeasonalCalendarViewState extends State<SeasonalCalendarView> {
                    child: Column(
                      mainAxisAlignment: MainAxisAlignment.center,
                      children: [
-                       Icon(Icons.event_busy, size: 48, color: theme.colorScheme.outline.withOpacity(0.5)),
+                       Icon(Icons.event_busy, size: 48, color: theme.colorScheme.outline.withValues(alpha: 0.5)),
                        const SizedBox(height: 16),
                        Text(
                          'No active trades in this view',
@@ -261,7 +261,7 @@ class _SeasonalCalendarViewState extends State<SeasonalCalendarView> {
                           child: Container(
                             decoration: BoxDecoration(
                               color: isHighlighted 
-                                ? theme.colorScheme.primaryContainer.withOpacity(0.3) 
+                                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3) 
                                 : theme.cardTheme.color,
                               borderRadius: BorderRadius.circular(12),
                               border: isHighlighted 

@@ -152,7 +152,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(16)),
           side: BorderSide(
-            color: Color(0x0DFFFFFF), // Colors.white.withOpacity(0.05)
+            color: Color(0x0DFFFFFF), // Colors.white.withValues(alpha: 0.05)
             width: 1,
           ),
         ),
@@ -162,7 +162,7 @@ class AppTheme {
       // Inputs
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceHighlight.withOpacity(0.3),
+        fillColor: AppColors.surfaceHighlight.withValues(alpha: 0.3),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -170,7 +170,7 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -197,7 +197,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.textPrimary,
-          side: BorderSide(color: AppColors.textDisabled.withOpacity(0.5)),
+          side: BorderSide(color: AppColors.textDisabled.withValues(alpha: 0.5)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -207,7 +207,7 @@ class AppTheme {
 
       // Misc
       dividerTheme: DividerThemeData(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         thickness: 1,
       ),
     );

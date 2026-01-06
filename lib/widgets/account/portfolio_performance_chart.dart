@@ -102,7 +102,7 @@ class _PortfolioPerformanceChartState extends State<PortfolioPerformanceChart> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,7 +161,7 @@ class _PortfolioPerformanceChartState extends State<PortfolioPerformanceChart> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: (isProfit ? AppTheme.profit : AppTheme.loss).withOpacity(0.1),
+        color: (isProfit ? AppTheme.profit : AppTheme.loss).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -209,7 +209,7 @@ class _PortfolioPerformanceChartState extends State<PortfolioPerformanceChart> {
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
-              color: AppTheme.brandPrimary.withOpacity(0.1),
+              color: AppTheme.brandPrimary.withValues(alpha: 0.1),
             ),
           ),
         ],

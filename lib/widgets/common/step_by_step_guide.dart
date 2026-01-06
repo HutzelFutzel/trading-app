@@ -10,7 +10,7 @@ class StepByStepGuide extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -77,9 +77,9 @@ class StepByStepGuide extends StatelessWidget {
             height: 28,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
+              color: AppColors.primary.withValues(alpha: 0.15),
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary.withOpacity(0.5)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
             ),
             child: Text(
               number.toString(),

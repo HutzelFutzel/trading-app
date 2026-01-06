@@ -235,7 +235,7 @@ class _AccountScreenState extends State<AccountScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             height: 1,
           ),
         ),
@@ -275,7 +275,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                 
                 const SizedBox(height: 40),
-                Divider(color: Colors.white.withOpacity(0.05)),
+                Divider(color: Colors.white.withValues(alpha: 0.05)),
                 const SizedBox(height: 24),
                 
                 // Logout Button removed
@@ -415,7 +415,7 @@ class _AccountCardState extends State<_AccountCard> {
         decoration: BoxDecoration(
           color: AppColors.background,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Column(
           children: [
@@ -424,7 +424,7 @@ class _AccountCardState extends State<_AccountCard> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -451,7 +451,7 @@ class _AccountCardState extends State<_AccountCard> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         children: [
@@ -487,7 +487,7 @@ class _AccountCardState extends State<_AccountCard> {
                           onPressed: widget.onRetryVerification, 
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
-                            side: BorderSide(color: AppColors.warning.withOpacity(0.5)),
+                            side: BorderSide(color: AppColors.warning.withValues(alpha: 0.5)),
                             foregroundColor: AppColors.warning,
                           ),
                           child: const Text('Retry', style: TextStyle(fontSize: 10))
@@ -558,9 +558,9 @@ class _AccountCardState extends State<_AccountCard> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.1),
+                          color: AppColors.warning.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -580,9 +580,9 @@ class _AccountCardState extends State<_AccountCard> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.error.withOpacity(0.1),
+                          color: AppColors.error.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -649,9 +649,9 @@ class _AccountCardState extends State<_AccountCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.5))
+        border: Border.all(color: color.withValues(alpha: 0.5))
       ),
       child: Text(
         text, 

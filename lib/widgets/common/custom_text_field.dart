@@ -54,12 +54,12 @@ class CustomTextField extends StatelessWidget {
             color: AppColors.surfaceHighlight, // Higher contrast background (Slate 700)
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.white.withOpacity(0.15), // Clearer border
+              color: Colors.white.withValues(alpha: 0.15), // Clearer border
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -82,7 +82,7 @@ class CustomTextField extends StatelessWidget {
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondary.withOpacity(0.7),
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
               ),
               prefixIcon: prefixIcon != null
                   ? IconTheme(

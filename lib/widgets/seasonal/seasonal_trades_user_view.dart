@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../../models/seasonal_trade.dart';
 import '../../models/seasonal_strategy_user_settings.dart';
 import '../../models/user.dart';
-import '../../services/api_service.dart';
-import '../../services/config_service.dart';
+import '../../services/seasonal_data_service.dart';
 import '../../theme/app_theme.dart';
 import '../../screens/seasonal_trade_view.dart';
 import '../../screens/account_screen.dart';
 import '../common/custom_text_field.dart';
+import 'seasonal_trades_calendar.dart';
 
 class SeasonalTradesUserView extends StatefulWidget {
   const SeasonalTradesUserView({super.key});
@@ -21,223 +20,74 @@ enum SortOption { comingNext, openDate, symbol, thread }
 enum TradeViewMode { subscribed, unsubscribed }
 
 class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
-  List<SeasonalTrade> _trades = [];
-  
-  bool _isLoading = true;
-  String? _error;
-  late ApiService _apiService;
-  
-  SeasonalStrategyUserSettings? _userRules;
-  User? _user;
-
   // Filter & Sort State
   String _filterText = '';
   bool _showPaperActive = false;
   bool _showLiveActive = false;
-  int? _filterThread; // Null means all threads
+  int? _filterThread; 
   SortOption _sortBy = SortOption.comingNext;
   TradeViewMode _viewMode = TradeViewMode.subscribed;
+  String? _loadingTradeId;
 
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService(baseUrl: ConfigService().apiBaseUrl);
-    _init();
-  }
-
-  Future<void> _init() async {
-    try {
-      await Future.wait([
-        _fetchTrades(),
-        _fetchRules(),
-      ]);
-    } catch (e) {
+    // Trigger fetch on init
+    SeasonalDataService().fetchData().then((_) {
       if (mounted) {
-        setState(() {
-          _error = 'Failed to load data: $e';
-          _isLoading = false;
-        });
+        SeasonalDataService().fetchAllStatistics();
       }
-    }
-  }
-
-  Future<void> _fetchTrades() async {
-    try {
-      setState(() => _isLoading = true);
-      
-      final trades = await _apiService.getSeasonalTrades();
-      
-      if (mounted) {
-        setState(() {
-          _trades = trades;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load trades: $e';
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchRules() async {
-    try {
-      final results = await Future.wait([
-        _apiService.getSeasonalTradeRules(),
-        _apiService.getSeasonalStrategyUserSettings(),
-        _apiService.getUser(),
-      ]);
-      
-      if (mounted) {
-        setState(() {
-            _userRules = results[1] as SeasonalStrategyUserSettings;
-            _user = results[2] as User;
-        });
-      }
-    } catch (_) {
-      // Fail silently for rules
-    }
+    });
   }
 
   Future<void> _openTrade(SeasonalTrade trade) async {
     if (trade.id == null) return;
     
+    setState(() {
+      _loadingTradeId = trade.id;
+    });
+
+    try {
+      await Future.wait([
+        SeasonalDataService().fetchStatistics(trade.id!),
+        SeasonalDataService().fetchSeasonalEquity(trade.id!),
+      ]);
+    } catch (_) {
+      // Ignore errors, let view handle
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _loadingTradeId = null;
+    });
+
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SeasonalTradeView(trade: trade, userSettings: _userRules),
+        builder: (context) => SeasonalTradeView(trade: trade),
       ),
     );
-    _fetchRules(); // Refresh settings after return
   }
 
-  Future<void> _subscribe(SeasonalTrade trade) async {
-    if (_userRules == null || trade.id == null) return;
-    
-    // Optimistic Update
-    final oldRules = _userRules;
-    final newRules = _userRules!.subscribe(trade.id!);
-    
-    setState(() => _userRules = newRules);
-
+  // Helpers Logic
+  int _daysUntilOpen(String dateStr) {
     try {
-      await _apiService.saveSeasonalStrategyUserSettings(newRules);
+      final now = DateTime.now();
+      final parts = dateStr.split('-');
+      final month = int.parse(parts[0]);
+      final day = int.parse(parts[1]);
       
-      // Auto-enable short trading for Short trades
-      if (trade.direction == 'Short') {
-         await _enableShortTrading();
+      var nextDate = DateTime(now.year, month, day);
+      if (nextDate.isBefore(now.subtract(const Duration(days: 1)))) { 
+        nextDate = DateTime(now.year + 1, month, day);
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _userRules = oldRules);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to subscribe: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _enableShortTrading() async {
-    try {
-      // Fetch fresh user data to avoid overwriting other changes
-      final user = await _apiService.getUser();
-      
-      bool needsUpdate = false;
-      
-      var paper = user.alpacaPaperAccount;
-      var live = user.alpacaLiveAccount;
-
-      if (paper != null && !paper.allowShortTrading) {
-        paper = paper.copyWith(allowShortTrading: true);
-        needsUpdate = true;
-      }
-      
-      if (live != null && !live.allowShortTrading) {
-        live = live.copyWith(allowShortTrading: true);
-        needsUpdate = true;
-      }
-
-      if (needsUpdate) {
-          final updatedUser = user.copyWith(
-            alpacaPaperAccount: paper,
-            alpacaLiveAccount: live,
-          );
-          await _apiService.saveUser(updatedUser);
-          if (mounted) {
-            setState(() => _user = updatedUser);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Automatically enabled Short Trading for your Alpaca accounts')),
-            );
-          }
-      } else {
-         if (mounted) setState(() => _user = user);
-      }
+      return nextDate.difference(now).inDays;
     } catch (_) {
-       // Fail silently on secondary update
+      return 999;
     }
   }
-
-  Future<void> _switchTradesTo(bool toLive) async {
-    if (_userRules == null) return;
-    
-    try {
-      setState(() => _isLoading = true);
-      
-      SeasonalStrategyUserSettings newRules;
-      
-      if (toLive) {
-        // Move Paper -> Live
-        final currentPaper = Set<String>.from(_userRules!.paperTradeIds);
-        final currentLive = Set<String>.from(_userRules!.liveTradeIds);
-        
-        // Add all paper to live
-        currentLive.addAll(currentPaper);
-        
-        // Remove all from paper (Move logic)
-        // Or should we keep them? "Make... to live" implies changing the target.
-        // I will clear paper to avoid double execution if paper is ever re-enabled unexpectedly.
-        
-        newRules = _userRules!.copyWith(
-          liveTradeIds: currentLive.toList(),
-          paperTradeIds: [], // Clear paper
-        );
-      } else {
-        // Move Live -> Paper
-        final currentPaper = Set<String>.from(_userRules!.paperTradeIds);
-        final currentLive = Set<String>.from(_userRules!.liveTradeIds);
-        
-        currentPaper.addAll(currentLive);
-        
-        newRules = _userRules!.copyWith(
-          paperTradeIds: currentPaper.toList(),
-          liveTradeIds: [], // Clear live
-        );
-      }
-      
-      await _apiService.saveSeasonalStrategyUserSettings(newRules);
-      
-      if (mounted) {
-        setState(() {
-          _userRules = newRules;
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Successfully moved all trades to ${toLive ? "Live" : "Paper"}')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Failed to switch trades: $e')),
-        );
-      }
-    }
-  }
-
+  
   bool _isOngoing(SeasonalTrade trade) {
     final now = DateTime.now();
     try {
@@ -266,193 +116,227 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
     }
   }
 
-  int _daysUntilOpen(String dateStr) {
-    try {
-      final now = DateTime.now();
-      final parts = dateStr.split('-');
-      final month = int.parse(parts[0]);
-      final day = int.parse(parts[1]);
-      
-      var nextDate = DateTime(now.year, month, day);
-      if (nextDate.isBefore(now.subtract(const Duration(days: 1)))) { 
-        nextDate = DateTime(now.year + 1, month, day);
-      }
-      return nextDate.difference(now).inDays;
-    } catch (_) {
-      return 999;
-    }
-  }
-  
-  int _getThreadForTrade(String? tradeId) {
-    if (tradeId == null || _userRules == null) return 1;
-    return _userRules!.getThreadForTrade(tradeId);
-  }
-  
-  bool _getPaperActive(String? tradeId) {
-    if (tradeId == null || _userRules == null) return false;
-    return _userRules!.isPaperActive(tradeId);
-  }
-  
-  bool _getLiveActive(String? tradeId) {
-    if (tradeId == null || _userRules == null) return false;
-    return _userRules!.isLiveActive(tradeId);
-  }
-
-  List<int> get _availableThreads {
-    final threads = _trades.map((e) => _getThreadForTrade(e.id)).toSet().toList();
-    threads.sort();
-    return threads;
-  }
-
-  List<SeasonalTrade> get _filteredTrades {
-    var list = _trades.where((t) {
-      if (!t.verifiedByApi) return false;
-
-      final paperActive = _getPaperActive(t.id);
-      final liveActive = _getLiveActive(t.id);
-      final thread = _getThreadForTrade(t.id);
-      final isSubscribed = paperActive || liveActive; // Simplified subscription check
-
-      // View Mode Filter
-      if (_viewMode == TradeViewMode.subscribed && !isSubscribed) return false;
-      if (_viewMode == TradeViewMode.unsubscribed && isSubscribed) return false;
-
-      final matchesText = t.symbol.toLowerCase().contains(_filterText.toLowerCase());
-      
-      // Secondary Filters (Only apply in Subscribed mode)
-      bool matchesSecondary = true;
-      if (_viewMode == TradeViewMode.subscribed) {
-         final matchesPaper = !_showPaperActive || paperActive;
-         final matchesLive = !_showLiveActive || liveActive;
-         final matchesThread = _filterThread == null || thread == _filterThread;
-         matchesSecondary = matchesPaper && matchesLive && matchesThread;
-      }
-
-      return matchesText && matchesSecondary;
-    }).toList();
-
-    list.sort((a, b) {
-      final ongoingA = _isOngoing(a);
-      final ongoingB = _isOngoing(b);
-
-      if (ongoingA && !ongoingB) return -1;
-      if (!ongoingA && ongoingB) return 1;
-
-      switch (_sortBy) {
-        case SortOption.comingNext:
-          return _daysUntilOpen(a.openDate).compareTo(_daysUntilOpen(b.openDate));
-        case SortOption.openDate:
-           return a.openDate.compareTo(b.openDate);
-        case SortOption.symbol:
-          return a.symbol.compareTo(b.symbol);
-        case SortOption.thread:
-          return _getThreadForTrade(a.id).compareTo(_getThreadForTrade(b.id));
-      }
-    });
-
-    return list;
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Text(_error!, style: AppTextStyles.bodyLarge));
+    return ListenableBuilder(
+      listenable: SeasonalDataService(),
+      builder: (context, _) {
+        final service = SeasonalDataService();
+        final trades = service.trades;
+        final userRules = service.userSettings;
+        final user = service.user;
+        final isLoading = service.isLoading && trades.isEmpty;
+        final error = service.error;
 
-    final displayTrades = _filteredTrades;
+        if (isLoading) return const Center(child: CircularProgressIndicator());
+        if (error != null && trades.isEmpty) return Center(child: Text(error, style: AppTextStyles.bodyLarge));
 
-          final paperAccount = _user?.alpacaPaperAccount;
-    final isPaperEnabled = paperAccount?.enabled ?? false;
-    final isPaperVerified = paperAccount?.verified ?? false;
-    final isPaperReady = paperAccount != null && isPaperEnabled && isPaperVerified;
+        // Logic Helpers using current data
+        int getThreadForTrade(String? tradeId) {
+          if (tradeId == null || userRules == null) return 1;
+          return userRules.getThreadForTrade(tradeId);
+        }
+        
+        bool getPaperActive(String? tradeId) {
+          if (tradeId == null || userRules == null) return false;
+          return userRules.isPaperActive(tradeId);
+        }
+        
+        bool getLiveActive(String? tradeId) {
+          if (tradeId == null || userRules == null) return false;
+          return userRules.isLiveActive(tradeId);
+        }
 
-    final liveAccount = _user?.alpacaLiveAccount;
-    final isLiveEnabled = liveAccount?.enabled ?? false;
-    final isLiveVerified = liveAccount?.verified ?? false;
-    final isLiveReady = liveAccount != null && isLiveEnabled && isLiveVerified;
+        List<int> availableThreads = [];
+        if (trades.isNotEmpty) {
+           availableThreads = trades.map((e) => getThreadForTrade(e.id)).toSet().toList();
+           availableThreads.sort();
+        }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Column(
-        children: [
-          _buildHeader(),
-          if (_userRules != null && _user != null)
-             _buildAccountWarnings(),
-          Expanded(
-            child: displayTrades.isEmpty && _viewMode == TradeViewMode.subscribed 
-                ? _buildEmptyState()
-                : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: displayTrades.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final trade = displayTrades[index];
-                final thread = _getThreadForTrade(trade.id);
-                final paperActive = _getPaperActive(trade.id);
-                final liveActive = _getLiveActive(trade.id);
-                final isSubscribed = paperActive || liveActive;
-                
-                return _UserTradeCard(
-                    trade: trade, 
-                    thread: thread,
-                    paperActive: paperActive,
-                    liveActive: liveActive,
-                    isSubscribed: isSubscribed,
-                    onTap: () => _openTrade(trade), 
-                    onSubscribe: () => _subscribe(trade),
-                    userRules: _userRules,
-                    isPaperReady: isPaperReady,
-                    isLiveReady: isLiveReady,
-                );
-              },
+        // Filtering
+        var displayTrades = trades.where((t) {
+          if (!t.verifiedByApi) return false;
+
+          final paperActive = getPaperActive(t.id);
+          final liveActive = getLiveActive(t.id);
+          final thread = getThreadForTrade(t.id);
+          final isSubscribed = paperActive || liveActive;
+
+          if (_viewMode == TradeViewMode.subscribed && !isSubscribed) return false;
+          if (_viewMode == TradeViewMode.unsubscribed && isSubscribed) return false;
+
+          final matchesText = t.symbol.toLowerCase().contains(_filterText.toLowerCase());
+          
+          bool matchesSecondary = true;
+          if (_viewMode == TradeViewMode.subscribed) {
+             final matchesPaper = !_showPaperActive || paperActive;
+             final matchesLive = !_showLiveActive || liveActive;
+             final matchesThread = _filterThread == null || thread == _filterThread;
+             matchesSecondary = matchesPaper && matchesLive && matchesThread;
+          }
+
+          return matchesText && matchesSecondary;
+        }).toList();
+
+        displayTrades.sort((a, b) {
+          final ongoingA = _isOngoing(a);
+          final ongoingB = _isOngoing(b);
+
+          if (ongoingA && !ongoingB) return -1;
+          if (!ongoingA && ongoingB) return 1;
+
+          switch (_sortBy) {
+            case SortOption.comingNext:
+              return _daysUntilOpen(a.openDate).compareTo(_daysUntilOpen(b.openDate));
+            case SortOption.openDate:
+               return a.openDate.compareTo(b.openDate);
+            case SortOption.symbol:
+              return a.symbol.compareTo(b.symbol);
+            case SortOption.thread:
+              return getThreadForTrade(a.id).compareTo(getThreadForTrade(b.id));
+          }
+        });
+
+        // Account Status
+        final paperAccount = user?.alpacaPaperAccount;
+        final isPaperReady = paperAccount != null && paperAccount.enabled && paperAccount.verified;
+        final liveAccount = user?.alpacaLiveAccount;
+        final isLiveReady = liveAccount != null && liveAccount.enabled && liveAccount.verified;
+
+        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
+        if (isLandscape) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: SafeArea(
+              child: trades.isNotEmpty 
+                ? SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: SeasonalTradesCalendar(
+                        trades: trades, 
+                        userSettings: userRules
+                      ),
+                    ),
+                  )
+                : _buildEmptyState(),
             ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _buildHeader(trades)),
+              
+              if (userRules != null && user != null)
+                 SliverToBoxAdapter(child: _buildAccountWarnings(userRules, user, isPaperReady, isLiveReady)),
+              
+              if (trades.isNotEmpty)
+                 SliverToBoxAdapter(
+                   child: Container(
+                     margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                     decoration: BoxDecoration(
+                       color: AppColors.surface,
+                       borderRadius: BorderRadius.circular(16),
+                       border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                       boxShadow: [
+                         BoxShadow(
+                           color: Colors.black.withValues(alpha: 0.2),
+                           blurRadius: 10,
+                           offset: const Offset(0, 4),
+                         ),
+                       ],
+                     ),
+                     clipBehavior: Clip.antiAlias,
+                     child: SeasonalTradesCalendar(
+                       trades: trades, 
+                       userSettings: userRules
+                     ),
+                   ),
+                 ),
+
+              if (displayTrades.isEmpty && _viewMode == TradeViewMode.subscribed)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final trade = displayTrades[index];
+                        final thread = getThreadForTrade(trade.id);
+                        final paperActive = getPaperActive(trade.id);
+                        final liveActive = getLiveActive(trade.id);
+                        final isSubscribed = paperActive || liveActive;
+                        
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _UserTradeCard(
+                              trade: trade, 
+                              thread: thread,
+                              paperActive: paperActive,
+                              liveActive: liveActive,
+                              isSubscribed: isSubscribed,
+                              isLoading: _loadingTradeId == trade.id,
+                              onTap: () => _openTrade(trade), 
+                              onSubscribe: () async {
+                                 try {
+                                   await SeasonalDataService().subscribe(trade.id!);
+                                 } catch (e) {
+                                   if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                                 }
+                              },
+                              userRules: userRules,
+                              isPaperReady: isPaperReady,
+                              isLiveReady: isLiveReady,
+                          ),
+                        );
+                      },
+                      childCount: displayTrades.length,
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ],
-      ),
+        );
+      }
     );
   }
 
-  Widget _buildAccountWarnings() {
-    final paperCount = _userRules?.paperTradeIds.length ?? 0;
-    final liveCount = _userRules?.liveTradeIds.length ?? 0;
-    
-    // Check Paper Status
-    final paperAccount = _user?.alpacaPaperAccount;
-    final isPaperEnabled = paperAccount?.enabled ?? false;
-    final isPaperVerified = paperAccount?.verified ?? false;
-    final isPaperReady = paperAccount != null && isPaperEnabled && isPaperVerified;
-
-    // Check Live Status
-    final liveAccount = _user?.alpacaLiveAccount;
-    final isLiveEnabled = liveAccount?.enabled ?? false;
-    final isLiveVerified = liveAccount?.verified ?? false;
-    final isLiveReady = liveAccount != null && isLiveEnabled && isLiveVerified;
+  Widget _buildAccountWarnings(SeasonalStrategyUserSettings rules, User user, bool isPaperReady, bool isLiveReady) {
+    final paperCount = rules.paperTradeIds.length;
+    final liveCount = rules.liveTradeIds.length;
+    final paperEnabled = user.alpacaPaperAccount?.enabled ?? false;
+    final liveEnabled = user.alpacaLiveAccount?.enabled ?? false;
 
     List<Widget> warnings = [];
 
-    // Warning 1: Paper Active but Broken
     if (paperCount > 0 && !isPaperReady) {
        warnings.add(_buildWarningBanner(
          title: 'Paper Trading Issue',
-         message: 'You have $paperCount paper trades, but your Paper account is ${!isPaperEnabled ? "disabled" : "not verified"}.',
+         message: 'You have $paperCount paper trades, but your Paper account is ${!paperEnabled ? "disabled" : "not verified"}.',
          actionLabel: 'Switch to Live',
          canSwitch: isLiveReady,
-         onSwitch: () => _switchTradesTo(true),
+         onSwitch: () => SeasonalDataService().switchTradesTo(true),
        ));
     }
 
-    // Warning 2: Live Active but Broken
     if (liveCount > 0 && !isLiveReady) {
        warnings.add(_buildWarningBanner(
          title: 'Live Trading Issue',
-         message: 'You have $liveCount live trades, but your Live account is ${!isLiveEnabled ? "disabled" : "not verified"}.',
+         message: 'You have $liveCount live trades, but your Live account is ${!liveEnabled ? "disabled" : "not verified"}.',
          actionLabel: 'Switch to Paper',
          canSwitch: isPaperReady,
-         onSwitch: () => _switchTradesTo(false),
+         onSwitch: () => SeasonalDataService().switchTradesTo(false),
        ));
     }
 
     if (warnings.isEmpty) return const SizedBox.shrink();
-
     return Column(children: warnings);
   }
 
@@ -467,8 +351,8 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.1),
-        border: Border.all(color: AppColors.error.withOpacity(0.3)),
+        color: AppColors.error.withValues(alpha: 0.1),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -490,10 +374,10 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
                 onPressed: () => Navigator.push(
                   context, 
                   MaterialPageRoute(builder: (_) => const AccountScreen())
-                ).then((_) => _fetchRules()),
+                ).then((_) => SeasonalDataService().fetchData(forceRefresh: true)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
-                  side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                   minimumSize: const Size(0, 32),
                 ),
@@ -523,7 +407,7 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.textDisabled.withOpacity(0.5)),
+          Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.textDisabled.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             'No Active Trades',
@@ -550,12 +434,12 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(List<SeasonalTrade> trades) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.05)),
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
         ),
       ),
       padding: EdgeInsets.only(
@@ -580,12 +464,12 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: Row(
               children: [
-                Expanded(child: _buildViewToggleBtn('My Trades', TradeViewMode.subscribed)),
-                Expanded(child: _buildViewToggleBtn('Discover', TradeViewMode.unsubscribed)),
+                Expanded(child: _buildViewToggleBtn('My Trades', TradeViewMode.subscribed, trades)),
+                Expanded(child: _buildViewToggleBtn('Discover', TradeViewMode.unsubscribed, trades)),
               ],
             ),
           ),
@@ -598,7 +482,7 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
                 children: [
                   _buildSortMenu(),
                   const SizedBox(width: 8),
-                  _buildThreadFilter(),
+                  _buildThreadFilter(trades),
                   const SizedBox(width: 8),
                   _buildFilterChip(
                     label: 'Paper', 
@@ -628,13 +512,17 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
     );
   }
 
-  Widget _buildViewToggleBtn(String label, TradeViewMode mode) {
+  Widget _buildViewToggleBtn(String label, TradeViewMode mode, List<SeasonalTrade> trades) {
     final isSelected = _viewMode == mode;
     
+    final userRules = SeasonalDataService().userSettings;
+    
     // Count trades for each mode
-    final count = _trades.where((t) {
-      if (!t.verifiedByApi) return false;
-      final isSubscribed = _getPaperActive(t.id) || _getLiveActive(t.id);
+    final count = trades.where((t) {
+      if (!t.verifiedByApi || t.id == null) return false;
+      if (userRules == null) return mode == TradeViewMode.unsubscribed;
+      
+      final isSubscribed = userRules.isPaperActive(t.id!) || userRules.isLiveActive(t.id!);
       return mode == TradeViewMode.subscribed ? isSubscribed : !isSubscribed;
     }).length;
 
@@ -666,7 +554,7 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
                 color: isSelected ? AppColors.primary : AppColors.surface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isSelected ? Colors.transparent : Colors.white.withOpacity(0.1),
+                  color: isSelected ? Colors.transparent : Colors.white.withValues(alpha: 0.1),
                 ),
               ),
               child: AnimatedSwitcher(
@@ -711,7 +599,14 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
     );
   }
 
-  Widget _buildThreadFilter() {
+  Widget _buildThreadFilter(List<SeasonalTrade> trades) {
+    final userRules = SeasonalDataService().userSettings;
+    List<int> threads = [];
+    if (userRules != null) {
+        threads = trades.map((e) => userRules.getThreadForTrade(e.id ?? '')).toSet().toList();
+        threads.sort();
+    }
+
     return MenuAnchor(
       builder: (context, controller, child) {
         return _buildChip(
@@ -725,7 +620,7 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
       },
        menuChildren: [
          MenuItemButton(onPressed: () => setState(() => _filterThread = null), child: const Text('All Threads')),
-         ..._availableThreads.map((t) => 
+         ...threads.map((t) => 
             MenuItemButton(onPressed: () => setState(() => _filterThread = t), child: Text('Thread $t'))
          )
        ],
@@ -739,10 +634,10 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.primary.withOpacity(0.2) : AppColors.surface,
+          color: isActive ? AppColors.primary.withValues(alpha: 0.2) : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive ? AppColors.primary : Colors.white.withOpacity(0.1),
+            color: isActive ? AppColors.primary : Colors.white.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -770,10 +665,10 @@ class _SeasonalTradesUserViewState extends State<SeasonalTradesUserView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? color.withOpacity(0.2) : AppColors.surface,
+          color: isActive ? color.withValues(alpha: 0.2) : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive ? color : Colors.white.withOpacity(0.1),
+            color: isActive ? color : Colors.white.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -817,6 +712,7 @@ class _UserTradeCard extends StatelessWidget {
   final bool paperActive;
   final bool liveActive;
   final bool isSubscribed;
+  final bool isLoading;
   final VoidCallback onTap;
   final VoidCallback onSubscribe;
   final SeasonalStrategyUserSettings? userRules;
@@ -829,6 +725,7 @@ class _UserTradeCard extends StatelessWidget {
       required this.paperActive,
       required this.liveActive,
       required this.isSubscribed,
+      this.isLoading = false,
       required this.onTap, 
       required this.onSubscribe,
       this.userRules,
@@ -836,11 +733,6 @@ class _UserTradeCard extends StatelessWidget {
       this.isLiveReady = true,
   });
   
-  Color _getThreadColor(int thread) {
-    if (AppTheme.threadColors.containsKey(thread)) return AppTheme.threadColors[thread]!;
-    return Colors.primaries[thread % Colors.primaries.length];
-  }
-
   String _formatDatePretty(String mmdd) {
     try {
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -853,286 +745,251 @@ class _UserTradeCard extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (isSubscribed) {
-      return _buildSubscribedCard();
-    } else {
-      return _buildUnsubscribedCard();
-    }
+  Color _getThreadColor(int thread) {
+    if (AppTheme.threadColors.containsKey(thread)) return AppTheme.threadColors[thread]!;
+    return Colors.primaries[thread % Colors.primaries.length];
   }
 
-  Widget _buildSubscribedCard() {
-    final threadColor = _getThreadColor(thread);
+  @override
+  Widget build(BuildContext context) {
+    final service = SeasonalDataService();
+    final stats = service.getStatistics(trade.id ?? '');
+    final agg = service.calculateAggregate(stats);
+    final isStatsLoading = service.isStatisticsLoading(trade.id ?? '');
+    
     final isLong = trade.direction == 'Long';
-
-    // Determine if disabled based on account status
-    // If trade uses paper but paper is not ready -> disabled
-    // If trade uses live but live is not ready -> disabled
-    // If trade uses both, disabled if EITHER is not ready? Or only if BOTH are not ready?
-    // "respective environment... is !enabled"
-    // Let's say if ANY active environment is broken, we dim it.
+    final directionColor = isLong ? AppColors.long : AppColors.short;
+    
+    // Status Logic
     final paperBroken = paperActive && !isPaperReady;
     final liveBroken = liveActive && !isLiveReady;
-    final isBroken = paperBroken || liveBroken;
+    final isBroken = (paperActive || liveActive) && (paperBroken || liveBroken);
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: isBroken 
-            ? Border.all(color: AppColors.error.withOpacity(0.5))
-            : Border.all(color: Colors.white.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+             color: isBroken ? AppColors.error.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05)
+        ),
         boxShadow: [
-          if (isBroken)
-             BoxShadow(
-                color: AppColors.error.withOpacity(0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-             ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           )
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Opacity(
-            opacity: isBroken ? 0.7 : 1.0,
-            child: IntrinsicHeight(
-              child: Row(
-                children: [
-                  // Thread Strip
-                  Container(
-                    width: 6,
-                    decoration: BoxDecoration(
-                      color: threadColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16),
-                        bottomLeft: Radius.circular(16),
+          onTap: isLoading ? null : onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Row
+                Row(
+                  children: [
+                    // Symbol
+                    Text(
+                      trade.symbol,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
+                    const SizedBox(width: 8),
+                    
+                    // Direction Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: directionColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
                         children: [
-                          _buildHeader(isLong),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildDates(),
-                              Row(
-                                children: [
-                                  if (paperActive) ...[
-                                    _buildIndicator(
-                                      label: 'PAPER', 
-                                      color: paperBroken ? AppColors.textDisabled : AppColors.accent,
-                                      isError: paperBroken
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
-                                  if (liveActive)
-                                    _buildIndicator(
-                                      label: 'LIVE', 
-                                      color: liveBroken ? AppColors.textDisabled : AppColors.error,
-                                      isError: liveBroken
-                                    ),
-                                  
-                                  if (!paperActive && !liveActive)
-                                    Text(
-                                      'Inactive',
-                                      style: AppTextStyles.bodyMedium.copyWith(
-                                        color: AppColors.textDisabled,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
+                          Icon(
+                            isLong ? Icons.arrow_upward : Icons.arrow_downward,
+                            size: 10,
+                            color: directionColor,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            isLong ? 'LONG' : 'SHORT',
+                            style: TextStyle(
+                              color: directionColor,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUnsubscribedCard() {
-    final isLong = trade.direction == 'Long';
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                _buildHeader(isLong),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildDates(),
-                    Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    
+                    // Thread Badge (Only if subscribed)
+                    if (isSubscribed) ...[
+                      const SizedBox(width: 8),
+                       Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(6)
+                          color: _getThreadColor(thread).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _getThreadColor(thread).withValues(alpha: 0.3)),
                         ),
-                        child: Row(
-                            children: [
-                                const Icon(Icons.lock_outline, size: 12, color: AppColors.textDisabled),
-                                const SizedBox(width: 4),
-                                Text('Not Subscribed', style: TextStyle(color: AppColors.textDisabled, fontSize: 10)),
-                            ],
+                        child: Text(
+                          'T$thread',
+                          style: TextStyle(
+                            fontSize: 9, 
+                            fontWeight: FontWeight.bold,
+                            color: _getThreadColor(thread),
+                          ),
                         ),
+                      ),
+                    ],
+
+                    const Spacer(),
+
+                    // Dates
+                    Text(
+                      '${_formatDatePretty(trade.openDate)} - ${_formatDatePretty(trade.closeDate)}',
+                      style: AppTextStyles.monoMedium.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
                     ),
+                  ],
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Bottom Row: Stats & Action/Status
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Stats
+                    Expanded(
+                      child: isStatsLoading 
+                        ? Row(
+                            children: [
+                              SizedBox(
+                                width: 12, height: 12, 
+                                child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(AppColors.textSecondary.withValues(alpha: 0.5)))
+                              ),
+                              const SizedBox(width: 6),
+                              Text('Loading...', style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 11)),
+                            ],
+                          )
+                        : (agg.totalTrades > 0)
+                            ? Row(
+                                children: [
+                                  _buildStat('WIN', '${agg.winRate.toStringAsFixed(0)}%', AppColors.success),
+                                  const SizedBox(width: 12),
+                                  _buildStat(
+                                    'AVG', 
+                                    '${agg.averageProfitPercentage > 0 ? '+' : ''}${agg.averageProfitPercentage.toStringAsFixed(1)}%', 
+                                    agg.averageProfitPercentage >= 0 ? AppColors.success : AppColors.error
+                                  ),
+                                  const SizedBox(width: 12),
+                                  _buildStat('YRS', '${agg.totalTrades}', AppColors.textSecondary),
+                                ],
+                              )
+                            : Text('No stats', style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 11)),
+                    ),
+                    
+                    // Right Side: Status (if subscribed) OR Subscribe Button
+                    if (isSubscribed)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (paperActive) ...[
+                            _buildStatusDot('P', paperBroken ? AppColors.textDisabled : AppColors.accent, paperBroken),
+                            if (liveActive) const SizedBox(width: 6),
+                          ],
+                          if (liveActive)
+                            _buildStatusDot('L', liveBroken ? AppColors.textDisabled : AppColors.error, liveBroken),
+                          
+                          if (!paperActive && !liveActive)
+                             Text('Inactive', style: TextStyle(color: AppColors.textDisabled, fontSize: 10)),
+                        ],
+                      )
+                    else 
+                      InkWell(
+                        onTap: onSubscribe,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add, size: 12, color: AppColors.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Subscribe',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
             ),
           ),
-          // Action Strip
-          InkWell(
-            onTap: onSubscribe,
-            borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
-                borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                   Icon(Icons.add_circle_outline, size: 16, color: AppColors.primary),
-                   const SizedBox(width: 8),
-                   Text(
-                     'Subscribe to Trade',
-                     style: TextStyle(
-                       color: AppColors.primary,
-                       fontWeight: FontWeight.bold,
-                       fontSize: 14,
-                     ),
-                   ),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeader(bool isLong) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Text(
-                  trade.symbol,
-                  style: AppTextStyles.headlineLarge.copyWith(fontSize: 18),
-                ),
-                const SizedBox(width: 8),
-                if (trade.name != null)
-                  Expanded(
-                    child: Text(
-                      trade.name!,
-                      style: AppTextStyles.bodyMedium.copyWith(fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: (isLong ? AppColors.long : AppColors.short).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              isLong ? Icons.trending_up : Icons.trending_down,
-              size: 20,
-              color: isLong ? AppColors.long : AppColors.short,
-            ),
-          ),
-        ],
-      );
-  }
-
-  Widget _buildDates() {
-      return Row(
-        children: [
-          Icon(Icons.calendar_today_outlined, size: 12, color: AppColors.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            '${_formatDatePretty(trade.openDate)} - ${_formatDatePretty(trade.closeDate)}',
-            style: AppTextStyles.monoMedium.copyWith(
-              color: AppColors.textPrimary,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      );
-  }
-
-  Widget _buildIndicator({required String label, required Color color, bool isError = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-           color: isError ? AppColors.error : color.withOpacity(0.5), 
-           width: isError ? 1.0 : 0.5
+  Widget _buildStat(String label, String value, Color color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.7), fontSize: 9, fontWeight: FontWeight.w600),
         ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusDot(String label, Color color, bool isError) {
+    return Container(
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+        border: Border.all(color: isError ? AppColors.error : color.withValues(alpha: 0.5)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isError) ...[
-             const Icon(Icons.warning, size: 10, color: AppColors.error),
-             const SizedBox(width: 4),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: isError ? AppColors.error : color,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isError ? AppColors.error : color,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

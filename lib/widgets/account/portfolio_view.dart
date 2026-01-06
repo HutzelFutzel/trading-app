@@ -99,11 +99,11 @@ class PortfolioView extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: AppColors.error.withOpacity(0.1),
+                                        color: AppColors.error.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(4),
                                         border: Border.all(
                                             color:
-                                                AppColors.error.withOpacity(0.3)),
+                                                AppColors.error.withValues(alpha: 0.3)),
                                       ),
                                       child: Text(
                                         'CLOSE',
@@ -132,9 +132,9 @@ class PortfolioView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
+        color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

@@ -33,7 +33,7 @@ class MenuIconButton extends StatelessWidget {
           color: AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1), width: 1),
           ),
           elevation: 10,
           textStyle: AppTextStyles.bodyMedium,
@@ -43,9 +43,9 @@ class MenuIconButton extends StatelessWidget {
         icon: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.surfaceHighlight.withOpacity(0.3),
+            color: AppColors.surfaceHighlight.withValues(alpha: 0.3),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: const Icon(Icons.settings, color: AppColors.textSecondary, size: 20),
         ),
@@ -66,7 +66,7 @@ class MenuIconButton extends StatelessWidget {
                       'Signed in as',
                       style: AppTextStyles.bodyMedium.copyWith(
                         fontSize: 11,
-                        color: AppColors.textSecondary.withOpacity(0.7),
+                        color: AppColors.textSecondary.withValues(alpha: 0.7),
                       ),
                     ),
                     const SizedBox(height: 4),

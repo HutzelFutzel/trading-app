@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class SeasonalStrategyUserSettings {
   final String? id;
   final String userId;
@@ -278,15 +280,16 @@ class SeasonalStrategyUserSettings {
   }
 
   SeasonalStrategyUserSettings subscribe(String tradeId) {
+    final cleanId = tradeId.trim();
     // Add to paperTradeIds and thread1
     var newPaperIds = List<String>.from(paperTradeIds);
-    if (!newPaperIds.contains(tradeId)) {
-      newPaperIds.add(tradeId);
+    if (!newPaperIds.contains(cleanId)) {
+      newPaperIds.add(cleanId);
     }
     
     var newThread1 = List<String>.from(thread1);
-    if (!newThread1.contains(tradeId)) {
-      newThread1.add(tradeId);
+    if (!newThread1.contains(cleanId)) {
+      newThread1.add(cleanId);
     }
 
     return copyWith(
@@ -321,5 +324,53 @@ class SeasonalStrategyUserSettings {
       thread9: removeFrom(thread9),
       thread10: removeFrom(thread10),
     );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+  
+    return other is SeasonalStrategyUserSettings &&
+      other.id == id &&
+      other.userId == userId &&
+      other.accountId == accountId &&
+      other.allocationMode == allocationMode &&
+      mapEquals(other.customAllocationsPaper, customAllocationsPaper) &&
+      mapEquals(other.customAllocationsLive, customAllocationsLive) &&
+      listEquals(other.paperTradeIds, paperTradeIds) &&
+      listEquals(other.liveTradeIds, liveTradeIds) &&
+      listEquals(other.thread1, thread1) &&
+      listEquals(other.thread2, thread2) &&
+      listEquals(other.thread3, thread3) &&
+      listEquals(other.thread4, thread4) &&
+      listEquals(other.thread5, thread5) &&
+      listEquals(other.thread6, thread6) &&
+      listEquals(other.thread7, thread7) &&
+      listEquals(other.thread8, thread8) &&
+      listEquals(other.thread9, thread9) &&
+      listEquals(other.thread10, thread10);
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      userId,
+      accountId,
+      allocationMode,
+      Object.hashAll(customAllocationsPaper.keys),
+      Object.hashAll(customAllocationsLive.keys),
+      Object.hashAll(paperTradeIds),
+      Object.hashAll(liveTradeIds),
+      Object.hashAll([
+        thread1, thread2, thread3, thread4, thread5,
+        thread6, thread7, thread8, thread9, thread10
+      ]),
+    );
+  }
+  
+  @override
+  String toString() {
+    return 'SeasonalStrategyUserSettings(id: $id, userId: $userId, paperTrades: ${paperTradeIds.length}, liveTrades: ${liveTradeIds.length})';
   }
 }

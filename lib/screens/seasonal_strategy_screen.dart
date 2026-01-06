@@ -87,7 +87,7 @@ class SeasonalStrategyScreen extends StatefulWidget {
             preferredSize: const Size.fromHeight(48),
             child: Container(
               decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+                border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                 color: AppColors.background,
               ),
               child: TabBar(

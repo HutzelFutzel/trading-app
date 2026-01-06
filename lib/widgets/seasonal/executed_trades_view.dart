@@ -95,7 +95,7 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.background,
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
       ),
       child: Row(
         children: [
@@ -124,10 +124,10 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.2) : Colors.transparent,
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.2) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.textDisabled.withOpacity(0.3),
+            color: isSelected ? AppColors.primary : AppColors.textDisabled.withValues(alpha: 0.3),
           ),
         ),
         child: Text(
@@ -206,7 +206,7 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Text(
@@ -233,7 +233,7 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
                            Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: trade.direction == 'Long' ? AppColors.long.withOpacity(0.1) : AppColors.short.withOpacity(0.1),
+                              color: trade.direction == 'Long' ? AppColors.long.withValues(alpha: 0.1) : AppColors.short.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -265,9 +265,9 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
                   Container(
                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                      decoration: BoxDecoration(
-                       color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withOpacity(0.1),
+                       color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withValues(alpha: 0.1),
                        borderRadius: BorderRadius.circular(6),
-                       border: Border.all(color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withOpacity(0.3))
+                       border: Border.all(color: (trade.completed ? AppColors.textDisabled : AppColors.primary).withValues(alpha: 0.3))
                      ),
                      child: Text(
                         trade.completed ? 'CLOSED' : 'OPEN',
@@ -282,9 +282,9 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
                   Container(
                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                      decoration: BoxDecoration(
-                       color: (trade.isPaper ? AppColors.accent : AppColors.error).withOpacity(0.1),
+                       color: (trade.isPaper ? AppColors.accent : AppColors.error).withValues(alpha: 0.1),
                        borderRadius: BorderRadius.circular(4),
-                       border: Border.all(color: (trade.isPaper ? AppColors.accent : AppColors.error).withOpacity(0.3))
+                       border: Border.all(color: (trade.isPaper ? AppColors.accent : AppColors.error).withValues(alpha: 0.3))
                      ),
                      child: Text(
                         trade.isPaper ? 'PAPER' : 'LIVE',
@@ -306,9 +306,9 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.background.withOpacity(0.5),
+              color: AppColors.background.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withOpacity(0.05)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: Row(
               children: [
@@ -328,7 +328,7 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
                     ],
                   ),
                 ),
-                Container(width: 1, height: 24, color: Colors.white.withOpacity(0.1)),
+                Container(width: 1, height: 24, color: Colors.white.withValues(alpha: 0.1)),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -371,7 +371,7 @@ class _ExecutedTradesViewState extends State<ExecutedTradesView> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: profitColor.withOpacity(0.1),
+                color: profitColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(

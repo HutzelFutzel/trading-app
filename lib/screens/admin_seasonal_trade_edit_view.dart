@@ -114,7 +114,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             height: 1,
           ),
         ),
@@ -150,7 +150,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
                           hintText: 'e.g. AAPL',
                           prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                           filled: true,
-                          fillColor: AppColors.surfaceHighlight.withOpacity(0.3),
+                          fillColor: AppColors.surfaceHighlight.withValues(alpha: 0.3),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                         textCapitalization: TextCapitalization.characters,
@@ -163,7 +163,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
                       child: Container(
                         height: 56, // Match text field height
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceHighlight.withOpacity(0.3),
+                          color: AppColors.surfaceHighlight.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         padding: const EdgeInsets.all(4),
@@ -193,7 +193,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: Column(
                     children: [
@@ -203,12 +203,12 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
                         child: Row(
                           children: [
                             const SizedBox(width: 24), // Offset for icon
-                            Expanded(child: Divider(color: Colors.white.withOpacity(0.05))),
+                            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 8),
                               child: const Icon(Icons.arrow_downward, size: 16, color: AppColors.textSecondary),
                             ),
-                            Expanded(child: Divider(color: Colors.white.withOpacity(0.05))),
+                            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.05))),
                           ],
                         ),
                       ),
@@ -296,7 +296,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
       decoration: BoxDecoration(
         color: Colors.transparent, // Let container show
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
@@ -309,7 +309,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: AppColors.surfaceHighlight.withOpacity(0.3),
+              color: AppColors.surfaceHighlight.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(8),
             ),
             child: DropdownButton<int>(
@@ -332,7 +332,7 @@ class _AdminSeasonalTradeEditViewState extends State<AdminSeasonalTradeEditView>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: AppColors.surfaceHighlight.withOpacity(0.3),
+              color: AppColors.surfaceHighlight.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(8),
             ),
             child: DropdownButton<int>(
